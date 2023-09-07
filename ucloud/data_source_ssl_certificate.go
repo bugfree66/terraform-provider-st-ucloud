@@ -2,10 +2,15 @@ package ucloud
 
 import (
 	"context"
+	"fmt"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
+	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
 )
 
 var (
@@ -87,14 +92,29 @@ func (d *ucloudCertDataSource) Read(ctx context.Context, req datasource.ReadRequ
 	getCertificateV2Request.Limit = &limit
 	getCertificateV2Request.ProjectId = &d.client.GetConfig().ProjectId
 
+	reconnectBackoff := backoff.NewExponentialBackOff()
+	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	var (
+		getCertificateV2Response *ucdn.GetCertificateV2Response
+		err                      error
+	)
 	for {
-		getCertificateV2Response, err := d.client.GetCertificateV2(&getCertificateV2Request)
+		getCertificate := func() error {
+			getCertificateV2Response, err = d.client.GetCertificateV2(&getCertificateV2Request)
+			if err != nil {
+				if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
+					return err
+				}
+				return backoff.Permanent(err)
+			}
+			if getCertificateV2Response.RetCode != 0 {
+				return backoff.Permanent(fmt.Errorf("%s", getCertificateV2Response.Message))
+			}
+			return nil
+		}
+		err = backoff.Retry(getCertificate, reconnectBackoff)
 		if err != nil {
 			resp.Diagnostics.AddError("[API ERROR] Fail to Get Certificate", err.Error())
-			return
-		}
-		if getCertificateV2Response.RetCode != 0 {
-			resp.Diagnostics.AddError("[API ERROR] Fail to Get Certificate", getCertificateV2Response.Message)
 			return
 		}
 		for _, cert := range getCertificateV2Response.CertList {

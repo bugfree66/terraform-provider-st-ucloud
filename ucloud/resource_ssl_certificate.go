@@ -1,10 +1,15 @@
 package ucloud
 
 import (
+	"fmt"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
+	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
 	"github.com/ucloud/ucloud-sdk-go/ucloud/request"
 	"golang.org/x/net/context"
 )
@@ -82,19 +87,25 @@ func (r *ucloudSslCertificateResource) Create(ctx context.Context, req resource.
 		PrivateKey: model.Key.ValueStringPointer(),
 		CaCert:     model.CaCert.ValueStringPointer(),
 	}
-	addCertificateResponse, err := r.client.AddCertificate(addCertificateRequest)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Add Cert",
-			err.Error(),
-		)
-		return
+
+	addCertificate := func() error {
+		addCertificateResponse, err := r.client.AddCertificate(addCertificateRequest)
+		if err != nil {
+			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+		if addCertificateResponse.RetCode != 0 {
+			return backoff.Permanent(fmt.Errorf("%s", addCertificateResponse.Message))
+		}
+		return nil
 	}
-	if addCertificateResponse.RetCode != 0 {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Add Cert",
-			addCertificateResponse.Message,
-		)
+	reconnectBackoff := backoff.NewExponentialBackOff()
+	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	err := backoff.Retry(addCertificate, reconnectBackoff)
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Failed to Add Certificate", err.Error())
 		return
 	}
 	resp.State.Set(ctx, &model)
@@ -138,19 +149,25 @@ func (r *ucloudSslCertificateResource) Delete(ctx context.Context, req resource.
 		},
 		CertName: model.CertName.ValueStringPointer(),
 	}
-	deleteCertificateResponse, err := r.client.DeleteCertificate(&deleteCertificateRequest)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Del Cert",
-			err.Error(),
-		)
-		return
+
+	deleteCertificate := func() error {
+		deleteCertificateResponse, err := r.client.DeleteCertificate(&deleteCertificateRequest)
+		if err != nil {
+			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+		if deleteCertificateResponse.RetCode != 0 {
+			return backoff.Permanent(fmt.Errorf("%s", deleteCertificateResponse.Message))
+		}
+		return nil
 	}
-	if deleteCertificateResponse.RetCode != 0 {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Del Cert",
-			deleteCertificateResponse.Message,
-		)
+	reconnectBackoff := backoff.NewExponentialBackOff()
+	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	err := backoff.Retry(deleteCertificate, reconnectBackoff)
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Failed to Del Certificate", err.Error())
 		return
 	}
 }

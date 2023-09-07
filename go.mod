@@ -3,6 +3,7 @@ module github.com/myklst/terraform-provider-st-ucloud
 go 1.20
 
 require (
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/hashicorp/terraform-plugin-docs v0.16.0
 	github.com/hashicorp/terraform-plugin-framework v1.3.2
 	github.com/ucloud/ucloud-sdk-go v0.22.3
