@@ -3,7 +3,6 @@ package ucloud
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -114,9 +113,9 @@ type ucloudCdnDomainResource struct {
 }
 
 var (
-	_ resource.Resource                   = &ucloudCdnDomainResource{}
-	_ resource.ResourceWithConfigure      = &ucloudCdnDomainResource{}
-	_ resource.ResourceWithValidateConfig = &ucloudCdnDomainResource{}
+	_ resource.Resource              = &ucloudCdnDomainResource{}
+	_ resource.ResourceWithConfigure = &ucloudCdnDomainResource{}
+	//_ resource.ResourceWithValidateConfig = &ucloudCdnDomainResource{}
 )
 
 func NewUcloudCdnDomainResource() resource.Resource {
@@ -589,6 +588,7 @@ func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.Delet
 	}
 }
 
+/*
 func (r *ucloudCdnDomainResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var model ucloudCdnDomainResourceModel
 
@@ -603,6 +603,7 @@ func (r *ucloudCdnDomainResource) ValidateConfig(ctx context.Context, req resour
 			"`cert_name` should not be empty when https is enabled")
 	}
 }
+*/
 
 func (r *ucloudCdnDomainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("domain"), req, resp)
