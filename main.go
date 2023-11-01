@@ -14,7 +14,7 @@ import (
 func main() {
 	providerAddress := os.Getenv("PROVIDER_LOCAL_PATH")
 	if providerAddress == "" {
-		providerAddress = "registry.terraform.io/myklst/st-alicloud"
+		providerAddress = "registry.terraform.io/myklst/st-ucloud"
 	}
 	providerAddress = "example.local/myklst/st-ucloud"
 	providerserver.Serve(context.Background(), ucloud.New, providerserver.ServeOpts{
