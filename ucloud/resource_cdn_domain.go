@@ -791,6 +791,7 @@ func (r *ucloudCdnDomainResource) updateCdnDomainRequest(m *ucloudCdnDomainResou
 	m.AccessControlConfig.ReferConf.ReferList.ElementsAs(nil, &domainConf.AccessControlConf.ReferConf.ReferList, false)
 	// cache control
 	domainConf.CacheConf.CacheHost = m.CacheConf.CacheHost.ValueStringPointer()
+	domainConf.CacheConf.CacheList = make([]updateCdnCache, 0)
 	for _, c := range m.CacheConf.CacheList {
 		uc := updateCdnCache{}
 		uc.PathPattern = c.PathPattern.ValueString()
