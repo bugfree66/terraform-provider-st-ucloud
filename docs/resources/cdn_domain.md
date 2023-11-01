@@ -18,54 +18,53 @@ resource "st-ucloud_cdn_domain" "def" {
     st-ucloud_cert.def
   ]
 
-  domain = "xxxxx-cdn.com"
-  test_url = "http://xxxx-cdn.com/"
-  area_code = "cn"
-  cdn_type = "web"
+  domain       = "xxxxx-cdn.com"
+  test_url     = "http://xxxx-cdn.com/"
+  area_code    = "cn"
+  cdn_type     = "web"
   cdn_protocol = "http|https"
-  cert_name = "def"
-  tag = "Default"
+  cert_name    = "def"
+  tag          = "Default"
 
   origin_conf = {
     origin_ip_list = ["origin.xxxx-cdn.com"]
-#    origin_host = "origin.xxxx-cdn.com"
-    origin_port = 80
-    origin_protocol = "http"
-    origin_follow301 = 1
+    #    origin_host = "origin.xxxx-cdn.com"
+    origin_port          = 80
+    origin_protocol      = "http"
+    origin_follow301     = 1
     backup_origin_enable = false
   }
 
   cache_conf = {
-#    cache_host = ""
+    #    cache_host = ""
     cache_list = [
       {
         path_pattern = "/*"
-        ttl: 30
-        cache_unit = "day"
+        ttl : 30
+        cache_unit     = "day"
         cache_behavior = true
-#        follow_origin_rule = true
+        #        follow_origin_rule = true
         description = "test"
-     },
+      },
     ]
   }
 
   access_control_conf = {
-#    ip_blacklist = []
-#    ip_blacklist_empty = true
+    #    ip_blacklist = []
+    #    ip_blacklist_empty = true
     refer_conf = {
-#      refer_type = 0
-#      null_refer = 0
-#      refer_list = []
+      #      refer_type = 0
+      #      null_refer = 0
+      #      refer_list = []
     }
-#    enable_refer = false
+    #    enable_refer = false
   }
 
   advanced_conf = {
-#    http_client_header_list = []
-#    http_origin_header_list = []
-#    http_to_https = false
+    #    http_client_header_list = []
+    #    http_origin_header_list = []
+    #    http_to_https = false
   }
-
 }
 ```
 
@@ -74,18 +73,18 @@ resource "st-ucloud_cdn_domain" "def" {
 
 ### Required
 
-- `access_control_conf` (Attributes) The configuration of access control. (see [below for nested schema](#nestedatt--access_control_conf))
-- `advanced_conf` (Attributes) The advance configuration. (see [below for nested schema](#nestedatt--advanced_conf))
-- `cache_conf` (Attributes) The configuration of cache (see [below for nested schema](#nestedatt--cache_conf))
 - `domain` (String) Acceleration domain
-- `origin_conf` (Attributes) The configuration of origin (see [below for nested schema](#nestedatt--origin_conf))
 
 ### Optional
 
+- `access_control_conf` (Block, Optional) The configuration of access control. (see [below for nested schema](#nestedblock--access_control_conf))
+- `advanced_conf` (Block, Optional) The advance configuration. (see [below for nested schema](#nestedblock--advanced_conf))
 - `area_code` (String) Acceleration area.`cn` represents China.`abroad` represents regions outside China.If the value is unset,domain is accelerated in all regions
+- `cache_conf` (Block, Optional) The configuration of cache (see [below for nested schema](#nestedblock--cache_conf))
 - `cdn_protocol` (String) `http` for only http supported, `http|https` enable https feature
 - `cdn_type` (String) `web` for website service,`stream` for video service,`download` for download service
 - `cert_name` (String) The name of certificate
+- `origin_conf` (Block, Optional) The configuration of origin (see [below for nested schema](#nestedblock--origin_conf))
 - `tag` (String) The group of service.If the value is unset. `Default` is used as default value
 - `test_url` (String) Test url
 
@@ -100,19 +99,16 @@ resource "st-ucloud_cdn_domain" "def" {
 - `https_status_cn` (String) Https status
 - `status` (String) Domain status
 
-<a id="nestedatt--access_control_conf"></a>
+<a id="nestedblock--access_control_conf"></a>
 ### Nested Schema for `access_control_conf`
-
-Required:
-
-- `refer_conf` (Attributes) (see [below for nested schema](#nestedatt--access_control_conf--refer_conf))
 
 Optional:
 
 - `enable_refer` (Boolean) Whether enable refer.
 - `ip_blacklist` (List of String) Request from address in blacklist will be denied.
+- `refer_conf` (Block, Optional) (see [below for nested schema](#nestedblock--access_control_conf--refer_conf))
 
-<a id="nestedatt--access_control_conf--refer_conf"></a>
+<a id="nestedblock--access_control_conf--refer_conf"></a>
 ### Nested Schema for `access_control_conf.refer_conf`
 
 Optional:
@@ -123,7 +119,7 @@ Optional:
 
 
 
-<a id="nestedatt--advanced_conf"></a>
+<a id="nestedblock--advanced_conf"></a>
 ### Nested Schema for `advanced_conf`
 
 Optional:
@@ -133,19 +129,16 @@ Optional:
 - `http_to_https` (Boolean) If perform a forced conversion from http to https.
 
 
-<a id="nestedatt--cache_conf"></a>
+<a id="nestedblock--cache_conf"></a>
 ### Nested Schema for `cache_conf`
-
-Required:
-
-- `cache_list` (Attributes List) The list of cache rule (see [below for nested schema](#nestedatt--cache_conf--cache_list))
 
 Optional:
 
 - `cache_host` (String) Cache Host
+- `cache_rule` (Block List) The list of cache rule (see [below for nested schema](#nestedblock--cache_conf--cache_rule))
 
-<a id="nestedatt--cache_conf--cache_list"></a>
-### Nested Schema for `cache_conf.cache_list`
+<a id="nestedblock--cache_conf--cache_rule"></a>
+### Nested Schema for `cache_conf.cache_rule`
 
 Required:
 
@@ -161,7 +154,7 @@ Optional:
 
 
 
-<a id="nestedatt--origin_conf"></a>
+<a id="nestedblock--origin_conf"></a>
 ### Nested Schema for `origin_conf`
 
 Required:
