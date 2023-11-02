@@ -2,6 +2,7 @@ package ucloud
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
 	"github.com/ucloud/ucloud-sdk-go/ucloud/request"
 	"github.com/ucloud/ucloud-sdk-go/ucloud/response"
+)
+
+const (
+	DomainStatusEnable   = "enable"
+	DomainStatusDelete   = "delete"
+	DomainStatusChekFail = "checkFail"
 )
 
 type ucloudCacheRuleModel struct {
@@ -247,19 +254,19 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 								},
 								"description": schema.StringAttribute{
 									Description: "The description of rule",
-									Required:    true,
+									Optional:    true,
 								},
 								"ttl": schema.Int64Attribute{
 									Description: "The cache time",
-									Required:    true,
+									Optional:    true,
 								},
 								"cache_unit": schema.StringAttribute{
 									Description: "The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.",
-									Required:    true,
+									Optional:    true,
 								},
 								"cache_behavior": schema.BoolAttribute{
 									Description: "If caching is enabled.The optional values are true and false.",
-									Required:    true,
+									Optional:    true,
 								},
 								"follow_origin_rule": schema.BoolAttribute{
 									Description: "If follow caching instructions in http header from the origin.The optional values are true and false.",
@@ -388,6 +395,13 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 		},
 		DomainId: []string{model.DomainId.ValueString()},
 	}
+
+	status, err := r.waitForStatus(model.DomainId.ValueString(), []string{DomainStatusEnable, DomainStatusChekFail})
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Fail to get update status", err.Error())
+		return
+	}
+
 	var getUcdnDomainConfigResponse *ucdn.GetUcdnDomainConfigResponse
 	getDomainConfig := func() error {
 		getUcdnDomainConfigResponse, err = r.client.GetUcdnDomainConfig(&getUcdnDomainConfigRequest)
@@ -411,6 +425,8 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 	updateUcloudCdnDomainResourceModelComputeFields(&model, &getUcdnDomainConfigResponse.DomainList[0])
+
+	model.Status = types.StringValue(status)
 
 	resp.State.Set(ctx, model)
 }
@@ -548,6 +564,13 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 
 	copyUcloudCdnDomainResourceModelComputeFields(&model, &state)
 
+	status, err := r.waitForStatus(model.DomainId.ValueString(), []string{DomainStatusEnable})
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Fail to get update status", err.Error())
+		return
+	}
+	model.Status = types.StringValue(status)
+
 	resp.State.Set(ctx, model)
 }
 
@@ -594,6 +617,11 @@ func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.Delet
 	err = backoff.Retry(updateDomainStatus, reconnectBackoff)
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Fail to Update CdnDomain", err.Error())
+		return
+	}
+	_, err = r.waitForStatus(model.DomainId.ValueString(), []string{DomainStatusDelete})
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Fail to get update status", err.Error())
 		return
 	}
 }
@@ -848,4 +876,48 @@ func (r *ucloudCdnDomainResource) updateCdnDomainRequest(m *ucloudCdnDomainResou
 		},
 		DomainList: []updateCdnDomainConfig{domainConf},
 	}
+}
+
+func (r *ucloudCdnDomainResource) waitForStatus(domainId string, targetStatus []string) (string, error) {
+	var (
+		getUcdnDomainConfigResponse *ucdn.GetUcdnDomainConfigResponse
+		err                         error
+	)
+
+	getUcdnDomainConfigRequest := ucdn.GetUcdnDomainConfigRequest{
+		CommonBase: request.CommonBase{
+			ProjectId: &r.client.GetConfig().ProjectId,
+		},
+		DomainId: []string{domainId},
+	}
+
+	getDomainConfig := func() error {
+		getUcdnDomainConfigResponse, err = r.client.GetUcdnDomainConfig(&getUcdnDomainConfigRequest)
+		if err != nil {
+			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+		if getUcdnDomainConfigResponse.RetCode != 0 {
+			return backoff.Permanent(fmt.Errorf("%s", getUcdnDomainConfigResponse.Message))
+		}
+		for _, status := range targetStatus {
+			if status == DomainStatusDelete && len(getUcdnDomainConfigResponse.DomainList) == 0 {
+				return nil
+			} else if len(getUcdnDomainConfigResponse.DomainList) > 0 && status == getUcdnDomainConfigResponse.DomainList[0].Status {
+				return nil
+			}
+		}
+		return errors.New("unexpected status")
+	}
+	reconnectBackoff := backoff.NewExponentialBackOff()
+	err = backoff.Retry(getDomainConfig, reconnectBackoff)
+	if err != nil {
+		return "", errors.New("fail to get expected status")
+	}
+	if len(getUcdnDomainConfigResponse.DomainList) == 0 {
+		return DomainStatusDelete, nil
+	}
+	return getUcdnDomainConfigResponse.DomainList[0].Status, nil
 }
