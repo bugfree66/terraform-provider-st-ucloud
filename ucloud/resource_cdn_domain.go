@@ -132,7 +132,6 @@ type ucloudCdnDomainResource struct {
 var (
 	_ resource.Resource              = &ucloudCdnDomainResource{}
 	_ resource.ResourceWithConfigure = &ucloudCdnDomainResource{}
-	//_ resource.ResourceWithValidateConfig = &ucloudCdnDomainResource{}
 )
 
 func NewUcloudCdnDomainResource() resource.Resource {
@@ -625,23 +624,6 @@ func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.Delet
 		return
 	}
 }
-
-/*
-func (r *ucloudCdnDomainResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var model ucloudCdnDomainResourceModel
-
-	resp.Diagnostics.Append(req.Config.Get(ctx, &model)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	if strings.Contains(model.CdnProtocol.ValueString(), "https") && model.CertName.ValueString() == "" {
-		resp.Diagnostics.AddAttributeError(path.Root("cert_name"),
-			"Missing Attribute Configuration",
-			"`cert_name` should not be empty when https is enabled")
-	}
-}
-*/
 
 func (r *ucloudCdnDomainResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("domain_id"), req, resp)
