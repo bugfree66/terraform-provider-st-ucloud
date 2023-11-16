@@ -99,6 +99,7 @@ func (r *ucloudCdnDomainSslAssociationResource) Update(ctx context.Context, req 
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Fail to Update CdnDomainSslAssociation", err.Error())
 	}
+	api.DeleteUnusedCertificate(r.client, model.SslCertificateName.ValueString())
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
@@ -112,4 +113,5 @@ func (r *ucloudCdnDomainSslAssociationResource) Delete(ctx context.Context, req 
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Fail to Delete CdnDomainSslAssociation", err.Error())
 	}
+	api.DeleteUnusedCertificate(r.client, model.SslCertificateName.ValueString())
 }

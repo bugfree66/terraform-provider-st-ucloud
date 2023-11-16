@@ -117,10 +117,13 @@ Optional:
 Required:
 
 - `cache_behavior` (Boolean) If caching is enabled.The optional values are true and false.
+- `path_pattern` (String) The pattern of path
+
+Optional:
+
 - `cache_unit` (String) The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.
 - `description` (String) The description of rule
 - `follow_origin_rule` (Boolean) If follow caching instructions in http header from the origin.The optional values are true and false.
-- `path_pattern` (String) The pattern of path
 - `ttl` (Number) The cache time
 
 

@@ -2,15 +2,12 @@ package ucloud
 
 import (
 	"context"
-	"fmt"
-	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/myklst/terraform-provider-st-ucloud/ucloud/api"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
-	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
 )
 
 var (
@@ -85,53 +82,18 @@ func (d *ucloudCertDataSource) Read(ctx context.Context, req datasource.ReadRequ
 		return
 	}
 
-	var getCertificateV2Request ucdn.GetCertificateV2Request
-
-	offset, limit := 0, 10
-	getCertificateV2Request.Offset = &offset
-	getCertificateV2Request.Limit = &limit
-	getCertificateV2Request.ProjectId = &d.client.GetConfig().ProjectId
-
-	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	var (
-		getCertificateV2Response *ucdn.GetCertificateV2Response
-		err                      error
-	)
-	for {
-		getCertificate := func() error {
-			getCertificateV2Response, err = d.client.GetCertificateV2(&getCertificateV2Request)
-			if err != nil {
-				if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
-					return err
-				}
-				return backoff.Permanent(err)
-			}
-			if getCertificateV2Response.RetCode != 0 {
-				return backoff.Permanent(fmt.Errorf("%s", getCertificateV2Response.Message))
-			}
-			return nil
-		}
-		err = backoff.Retry(getCertificate, reconnectBackoff)
-		if err != nil {
-			resp.Diagnostics.AddError("[API ERROR] Fail to Get Certificate", err.Error())
+	certlist := api.GetCertificates(d.client, "")
+	for _, cert := range certlist {
+		ucloudCert := ucloudCert{}
+		ucloudCert.CertName = types.StringValue(cert.CertName)
+		domains, diags := types.ListValueFrom(ctx, types.StringType, cert.Domains)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
 			return
 		}
-		for _, cert := range getCertificateV2Response.CertList {
-			ucloudCert := ucloudCert{}
-			ucloudCert.CertName = types.StringValue(cert.CertName)
-			domains, diags := types.ListValueFrom(ctx, types.StringType, cert.Domains)
-			resp.Diagnostics.Append(diags...)
-			if resp.Diagnostics.HasError() {
-				return
-			}
-			ucloudCert.Domains = domains
-			model.CertList = append(model.CertList, ucloudCert)
-		}
-		if len(getCertificateV2Response.CertList) < limit {
-			break
-		}
-		offset += limit
+		ucloudCert.Domains = domains
+		model.CertList = append(model.CertList, ucloudCert)
 	}
-	resp.State.Set(ctx, model)
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
 }

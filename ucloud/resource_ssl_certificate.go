@@ -1,10 +1,6 @@
 package ucloud
 
 import (
-	"fmt"
-	"time"
-
-	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -12,8 +8,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/myklst/terraform-provider-st-ucloud/ucloud/api"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
-	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
-	"github.com/ucloud/ucloud-sdk-go/ucloud/request"
 	"golang.org/x/net/context"
 )
 
@@ -136,29 +130,7 @@ func (r *ucloudSslCertificateResource) Delete(ctx context.Context, req resource.
 		return
 	}
 
-	deleteCertificateRequest := ucdn.DeleteCertificateRequest{
-		CommonBase: request.CommonBase{
-			ProjectId: &r.client.GetConfig().ProjectId,
-		},
-		CertName: model.CertName.ValueStringPointer(),
-	}
-
-	deleteCertificate := func() error {
-		deleteCertificateResponse, err := r.client.DeleteCertificate(&deleteCertificateRequest)
-		if err != nil {
-			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
-				return err
-			}
-			return backoff.Permanent(err)
-		}
-		if deleteCertificateResponse.RetCode != 0 {
-			return backoff.Permanent(fmt.Errorf("%s", deleteCertificateResponse.Message))
-		}
-		return nil
-	}
-	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	err := backoff.Retry(deleteCertificate, reconnectBackoff)
+	err := api.DeleteCertificate(r.client, model.CertName.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Failed to Del Certificate", err.Error())
 		return

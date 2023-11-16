@@ -6,10 +6,17 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/myklst/terraform-provider-st-ucloud/ucloud/api"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
@@ -83,8 +90,9 @@ type ucloudCdnDomainResource struct {
 }
 
 var (
-	_ resource.Resource              = &ucloudCdnDomainResource{}
-	_ resource.ResourceWithConfigure = &ucloudCdnDomainResource{}
+	_ resource.Resource               = &ucloudCdnDomainResource{}
+	_ resource.ResourceWithConfigure  = &ucloudCdnDomainResource{}
+	_ resource.ResourceWithModifyPlan = &ucloudCdnDomainResource{}
 )
 
 func NewUcloudCdnDomainResource() resource.Resource {
@@ -134,6 +142,8 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 			"tag": &schema.StringAttribute{
 				Description: "The group of service.If the value is unset. `Default` is used as default value",
 				Optional:    true,
+				Computed:    true,
+				Default:     stringdefault.StaticString("Default"),
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -148,18 +158,28 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 					"origin_host": schema.StringAttribute{
 						Description: "The host of origin",
 						Optional:    true,
+						Computed:    true,
 					},
 					"origin_port": schema.Int64Attribute{
 						Description: "The service port of origin",
 						Optional:    true,
+						Computed:    true,
+						Default:     int64default.StaticInt64(80),
 					},
 					"origin_protocol": schema.StringAttribute{
 						Description: "The protocol of origin.The optional values are `http` and `https`",
 						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("https", "http"),
+						},
+						Default: stringdefault.StaticString("http"),
 					},
 					"origin_follow301": schema.Int64Attribute{
 						Description: "Whether redirect according to the url from origin.The optional values are 0 and 1",
 						Optional:    true,
+						Computed:    true,
+						Default:     int64default.StaticInt64(0),
 					},
 				},
 			},
@@ -182,15 +202,21 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 								},
 								"description": schema.StringAttribute{
 									Description: "The description of rule",
-									Required:    true,
+									Optional:    true,
+									Computed:    true,
+									Default:     stringdefault.StaticString(""),
 								},
 								"ttl": schema.Int64Attribute{
 									Description: "The cache time",
-									Required:    true,
+									Optional:    true,
+									Computed:    true,
+									Default:     int64default.StaticInt64(0),
 								},
 								"cache_unit": schema.StringAttribute{
 									Description: "The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.",
-									Required:    true,
+									Optional:    true,
+									Computed:    true,
+									Default:     stringdefault.StaticString("sec"),
 								},
 								"cache_behavior": schema.BoolAttribute{
 									Description: "If caching is enabled.The optional values are true and false.",
@@ -198,7 +224,9 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 								},
 								"follow_origin_rule": schema.BoolAttribute{
 									Description: "If follow caching instructions in http header from the origin.The optional values are true and false.",
-									Required:    true,
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
 								},
 							},
 						},
@@ -212,10 +240,14 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 						Description: "Request from address in blacklist will be denied.",
 						ElementType: types.StringType,
 						Optional:    true,
+						Computed:    true,
+						Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"enable_refer": schema.BoolAttribute{
 						Description: "Whether enable refer.",
 						Optional:    true,
+						Computed:    true,
+						Default:     booldefault.StaticBool(false),
 					},
 				},
 				Blocks: map[string]schema.Block{
@@ -225,15 +257,21 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 							"refer_type": schema.Int64Attribute{
 								Description: "The type of anti-leech rules.If the value is 0,`refer_list` is whitelist,requests with these refers will be allowed.If the value is 1,`refer_list` is blacklist,requests with these refers will be denied.",
 								Optional:    true,
+								Computed:    true,
+								Default:     int64default.StaticInt64(0),
 							},
 							"null_refer": schema.Int64Attribute{
 								Description: "When `refer_type` is 0,if the value is 0,NULL refer requests are not allowed.",
 								Optional:    true,
+								Computed:    true,
+								Default:     int64default.StaticInt64(0),
 							},
 							"refer_list": schema.ListAttribute{
 								Description: "The anti-leech rule list",
 								ElementType: types.StringType,
 								Optional:    true,
+								Computed:    true,
+								Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 							},
 						},
 					},
@@ -246,15 +284,21 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 						Description: "Add http header when send response to client.",
 						ElementType: types.StringType,
 						Optional:    true,
+						Computed:    true,
+						Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"http_origin_header_list": schema.ListAttribute{
 						Description: "Add http header when send request to origin",
 						ElementType: types.StringType,
 						Optional:    true,
+						Computed:    true,
+						Default:     listdefault.StaticValue(types.ListValueMust(types.StringType, []attr.Value{})),
 					},
 					"http_to_https": schema.BoolAttribute{
 						Description: "If perform a forced conversion from http to https.",
 						Optional:    true,
+						Computed:    true,
+						Default:     booldefault.StaticBool(false),
 					},
 				},
 			},
@@ -459,6 +503,20 @@ func (r *ucloudCdnDomainResource) ImportState(ctx context.Context, req resource.
 	resource.ImportStatePassthroughID(ctx, path.Root("domain_id"), req, resp)
 }
 
+func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	var plan ucloudCdnDomainResourceModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	if plan.OriginConfig != nil {
+		if plan.OriginConfig.OriginHost.IsNull() {
+			plan.OriginConfig.OriginHost = plan.Domain
+		}
+	}
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+
 func (r *ucloudCdnDomainResource) buildCreateCdnDomainRequest(m *ucloudCdnDomainResourceModel) (*api.CreateCdnDomainRequest, diag.Diagnostics) {
 	var diags diag.Diagnostics
 	domainConfig := api.CreateDomainConfig{}
@@ -489,111 +547,6 @@ func (r *ucloudCdnDomainResource) buildCreateCdnDomainRequest(m *ucloudCdnDomain
 		},
 		DomainList: []api.CreateDomainConfig{domainConfig},
 	}, diags
-}
-
-func updateUcloudCdnDomainResourceModelComputeFields(model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) {
-	model.DomainId = types.StringValue(info.DomainId)
-	model.Cname = types.StringValue(info.Cname)
-	model.Status = types.StringValue(info.Status)
-	model.CreateTime = types.Int64Value(int64(info.CreateTime))
-}
-
-func copyUcloudCdnDomainResourceModelComputeFields(dst, src *ucloudCdnDomainResourceModel) {
-	dst.DomainId = src.DomainId
-	dst.Cname = src.Cname
-	dst.Status = src.Status
-	dst.CreateTime = src.CreateTime
-}
-
-func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) diag.Diagnostics {
-	var diags, result diag.Diagnostics
-
-	if !model.AreaCode.IsNull() {
-		model.AreaCode = types.StringValue(info.AreaCode)
-	}
-	if !model.CdnType.IsNull() {
-		model.CdnType = types.StringValue(info.CdnType)
-	}
-	model.Status = types.StringValue(info.Status)
-	model.Cname = types.StringValue(info.Cname)
-	model.CreateTime = types.Int64Value(int64(info.CreateTime))
-	if !model.TestUrl.IsNull() {
-		model.TestUrl = types.StringValue(info.TestUrl)
-	}
-
-	if model.OriginConfig != nil {
-		if !model.OriginConfig.OriginIpList.IsNull() {
-			model.OriginConfig.OriginIpList, diags = types.ListValueFrom(ctx, types.StringType, info.OriginConf.OriginIpList)
-			result.Append(diags...)
-		}
-		if !model.OriginConfig.OriginHost.IsNull() {
-			model.OriginConfig.OriginHost = types.StringValue(info.OriginConf.OriginHost)
-		}
-		if !model.OriginConfig.OriginPort.IsNull() {
-			model.OriginConfig.OriginPort = types.Int64Value(int64(info.OriginConf.OriginPort))
-		}
-		if !model.OriginConfig.OriginProtocol.IsNull() {
-			model.OriginConfig.OriginProtocol = types.StringValue(info.OriginConf.OriginProtocol)
-		}
-		if !model.OriginConfig.OriginFollow301.IsNull() {
-			model.OriginConfig.OriginFollow301 = types.Int64Value(int64(info.OriginConf.OriginFollow301))
-		}
-	}
-
-	if model.AccessControlConfig != nil {
-		if !model.AccessControlConfig.IpBlackList.IsNull() {
-			model.AccessControlConfig.IpBlackList, diags = types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.IpBlackList)
-			result.Append(diags...)
-		}
-		if model.AccessControlConfig.ReferConf != nil {
-			if !model.AccessControlConfig.ReferConf.ReferType.IsNull() {
-				model.AccessControlConfig.ReferConf.ReferType = types.Int64Value(int64(info.AccessControlConf.ReferConf.ReferType))
-			}
-			if !model.AccessControlConfig.ReferConf.NullRefer.IsNull() {
-				model.AccessControlConfig.ReferConf.NullRefer = types.Int64Value(int64(info.AccessControlConf.ReferConf.NullRefer))
-			}
-			if !model.AccessControlConfig.ReferConf.ReferList.IsNull() {
-				model.AccessControlConfig.ReferConf.ReferList, diags = types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.ReferConf.ReferList)
-				result.Append(diags...)
-			}
-		}
-	}
-
-	if model.CacheConf != nil {
-		if !model.CacheConf.CacheHost.IsNull() {
-			model.CacheConf.CacheHost = types.StringValue(info.CacheConf.CacheHost)
-		}
-		if model.CacheConf.RuleList != nil {
-			model.CacheConf.RuleList = make([]*ucloudCacheRuleModel, 0)
-			for _, conf := range info.CacheConf.CacheList {
-				c := &ucloudCacheRuleModel{
-					PathPattern:      types.StringValue(conf.PathPattern),
-					Description:      types.StringValue(conf.Description),
-					TTL:              types.Int64Value(int64(conf.CacheTTL)),
-					CacheUnit:        types.StringValue(conf.CacheUnit),
-					CacheBehavior:    types.BoolValue(conf.CacheBehavior),
-					FollowOriginRule: types.BoolValue(conf.FollowOriginRule),
-				}
-				model.CacheConf.RuleList = append(model.CacheConf.RuleList, c)
-			}
-		}
-	}
-
-	if model.AdvancedConf != nil {
-		if !model.AdvancedConf.HttpClientHeaderList.IsNull() {
-			model.AdvancedConf.HttpClientHeaderList, diags = types.ListValueFrom(ctx, types.StringType, info.AdvancedConf.HttpClientHeader)
-			result.Append(diags...)
-		}
-		if !model.AdvancedConf.HttpClientHeaderList.IsNull() {
-			model.AdvancedConf.HttpOriginHeaderList, diags = types.ListValueFrom(ctx, types.StringType, info.AdvancedConf.HttpOriginHeader)
-			result.Append(diags...)
-		}
-		if !model.AdvancedConf.Http2Https.IsNull() {
-			model.AdvancedConf.Http2Https = types.BoolValue(info.AdvancedConf.Http2Https)
-		}
-	}
-
-	return result
 }
 
 func (r *ucloudCdnDomainResource) buildUpdateCdnDomainRequest(m *ucloudCdnDomainResourceModel) *api.UpdateCdnDomainRequest {
@@ -649,4 +602,73 @@ func (r *ucloudCdnDomainResource) buildUpdateCdnDomainRequest(m *ucloudCdnDomain
 		},
 		DomainList: []api.UpdateCdnDomainConfig{domainConf},
 	}
+}
+
+func updateUcloudCdnDomainResourceModelComputeFields(model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) {
+	model.DomainId = types.StringValue(info.DomainId)
+	model.Cname = types.StringValue(info.Cname)
+	model.Status = types.StringValue(info.Status)
+	model.CreateTime = types.Int64Value(int64(info.CreateTime))
+	if model.OriginConfig != nil {
+		model.OriginConfig.OriginHost = types.StringValue(info.OriginConf.OriginHost)
+	}
+}
+
+func copyUcloudCdnDomainResourceModelComputeFields(dst, src *ucloudCdnDomainResourceModel) {
+	dst.DomainId = src.DomainId
+	dst.Cname = src.Cname
+	dst.Status = src.Status
+	dst.CreateTime = src.CreateTime
+}
+
+func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) diag.Diagnostics {
+	var diags, result diag.Diagnostics
+
+	model.AreaCode = types.StringValue(info.AreaCode)
+	model.CdnType = types.StringValue(info.CdnType)
+	model.Status = types.StringValue(info.Status)
+	model.Cname = types.StringValue(info.Cname)
+	model.CreateTime = types.Int64Value(int64(info.CreateTime))
+	model.TestUrl = types.StringValue(info.TestUrl)
+
+	model.OriginConfig = &ucloudOriginConfigModel{}
+	model.OriginConfig.OriginIpList, diags = types.ListValueFrom(ctx, types.StringType, info.OriginConf.OriginIpList)
+	result.Append(diags...)
+	model.OriginConfig.OriginHost = types.StringValue(info.OriginConf.OriginHost)
+	model.OriginConfig.OriginPort = types.Int64Value(int64(info.OriginConf.OriginPort))
+	model.OriginConfig.OriginProtocol = types.StringValue(info.OriginConf.OriginProtocol)
+	model.OriginConfig.OriginFollow301 = types.Int64Value(int64(info.OriginConf.OriginFollow301))
+
+	model.AccessControlConfig = &ucloudAccessControlConfigModel{}
+	model.AccessControlConfig.IpBlackList, diags = types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.IpBlackList)
+	result.Append(diags...)
+	model.AccessControlConfig.ReferConf = &ucloudReferConfigModel{}
+	model.AccessControlConfig.ReferConf.ReferType = types.Int64Value(int64(info.AccessControlConf.ReferConf.ReferType))
+	model.AccessControlConfig.ReferConf.NullRefer = types.Int64Value(int64(info.AccessControlConf.ReferConf.NullRefer))
+	model.AccessControlConfig.ReferConf.ReferList, diags = types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.ReferConf.ReferList)
+	result.Append(diags...)
+
+	model.CacheConf = &ucloudCacheConfigModel{}
+	model.CacheConf.CacheHost = types.StringValue(info.CacheConf.CacheHost)
+	model.CacheConf.RuleList = make([]*ucloudCacheRuleModel, 0)
+	for _, conf := range info.CacheConf.CacheList {
+		c := &ucloudCacheRuleModel{
+			PathPattern:      types.StringValue(conf.PathPattern),
+			Description:      types.StringValue(conf.Description),
+			TTL:              types.Int64Value(int64(conf.CacheTTL)),
+			CacheUnit:        types.StringValue(conf.CacheUnit),
+			CacheBehavior:    types.BoolValue(conf.CacheBehavior),
+			FollowOriginRule: types.BoolValue(conf.FollowOriginRule),
+		}
+		model.CacheConf.RuleList = append(model.CacheConf.RuleList, c)
+	}
+
+	model.AdvancedConf = &ucloudAdvancedConfModel{}
+	model.AdvancedConf.HttpClientHeaderList, diags = types.ListValueFrom(ctx, types.StringType, info.AdvancedConf.HttpClientHeader)
+	result.Append(diags...)
+	model.AdvancedConf.HttpOriginHeaderList, diags = types.ListValueFrom(ctx, types.StringType, info.AdvancedConf.HttpOriginHeader)
+	result.Append(diags...)
+	model.AdvancedConf.Http2Https = types.BoolValue(info.AdvancedConf.Http2Https)
+
+	return result
 }
