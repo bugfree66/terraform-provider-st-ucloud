@@ -306,5 +306,6 @@ func (p *ucloudProvider) Resources(_ context.Context) []func() resource.Resource
 	return []func() resource.Resource{
 		NewUcloudSslCertificateResource,
 		NewUcloudCdnDomainResource,
+		NewUcloudCdnDomainSslResource,
 	}
 }

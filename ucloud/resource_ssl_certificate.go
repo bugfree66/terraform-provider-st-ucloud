@@ -7,7 +7,10 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/myklst/terraform-provider-st-ucloud/ucloud/api"
 	"github.com/ucloud/ucloud-sdk-go/services/ucdn"
 	uerr "github.com/ucloud/ucloud-sdk-go/ucloud/error"
 	"github.com/ucloud/ucloud-sdk-go/ucloud/request"
@@ -45,6 +48,9 @@ func (r *ucloudSslCertificateResource) Schema(_ context.Context, req resource.Sc
 			"cert_name": &schema.StringAttribute{
 				Description: "The name of certificate",
 				Required:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.RequiresReplace(),
+				},
 			},
 			"ca_cert": &schema.StringAttribute{
 				Description: "CA certificate content",
@@ -78,32 +84,11 @@ func (r *ucloudSslCertificateResource) Create(ctx context.Context, req resource.
 		return
 	}
 
-	addCertificateRequest := &ucdn.AddCertificateRequest{
-		CommonBase: request.CommonBase{
-			ProjectId: &r.client.GetConfig().ProjectId,
-		},
-		CertName:   model.CertName.ValueStringPointer(),
-		UserCert:   model.Cert.ValueStringPointer(),
-		PrivateKey: model.Key.ValueStringPointer(),
-		CaCert:     model.CaCert.ValueStringPointer(),
-	}
-
-	addCertificate := func() error {
-		addCertificateResponse, err := r.client.AddCertificate(addCertificateRequest)
-		if err != nil {
-			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
-				return err
-			}
-			return backoff.Permanent(err)
-		}
-		if addCertificateResponse.RetCode != 0 {
-			return backoff.Permanent(fmt.Errorf("%s", addCertificateResponse.Message))
-		}
-		return nil
-	}
-	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	err := backoff.Retry(addCertificate, reconnectBackoff)
+	err := api.AddCertificate(r.client,
+		model.CertName.ValueString(),
+		model.Cert.ValueString(),
+		model.Key.ValueString(),
+		model.CaCert.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Failed to Add Certificate", err.Error())
 		return
@@ -125,14 +110,22 @@ func (r *ucloudSslCertificateResource) Update(ctx context.Context, req resource.
 		return
 	}
 
-	if state.CertName != plan.CertName {
-		resp.Diagnostics.AddError(
-			"[API ERROR] Failed to Update Cert",
-			"not allowed to modify cert_name")
+	if state.CertName.Equal(plan.CertName) {
+		resp.Diagnostics.AddError("[API ERROR] Fail to Update Certificate", "cert_name exists")
 		return
 	}
-	resp.Diagnostics.AddWarning("[API WARNING]", "not implemented to update cert")
-	resp.State.Set(ctx, req.State.Raw)
+
+	err := api.AddCertificate(r.client,
+		plan.CertName.ValueString(),
+		plan.Cert.ValueString(),
+		plan.Key.ValueString(),
+		plan.CaCert.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Fail to Create New Certificate", err.Error())
+		return
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, plan)...)
 }
 
 func (r *ucloudSslCertificateResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
