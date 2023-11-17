@@ -530,15 +530,16 @@ func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.M
 	}
 
 	if plan.OriginConfig != nil {
-		if plan.OriginConfig.OriginHost.IsNull() {
+		if plan.OriginConfig.OriginHost.IsNull() || plan.OriginConfig.OriginHost.IsUnknown() {
 			plan.OriginConfig.OriginHost = plan.Domain
 		}
 	}
 
 	if plan.CacheConf == nil {
-		plan.CacheConf = &ucloudCacheConfigModel{
-			CacheHost: plan.Domain,
-		}
+		plan.CacheConf = &ucloudCacheConfigModel{}
+	}
+	if plan.CacheConf.CacheHost.IsNull() || plan.CacheConf.CacheHost.IsUnknown() {
+		plan.CacheConf.CacheHost = plan.Domain
 	}
 	if plan.CacheConf.RuleList == nil || len(plan.CacheConf.RuleList) == 0 {
 		rule := &ucloudCacheRuleModel{
