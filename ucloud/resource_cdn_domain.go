@@ -330,7 +330,7 @@ func (r *ucloudCdnDomainResource) Configure(ctx context.Context, req resource.Co
 
 func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var (
-		model                   ucloudCdnDomainResourceModel
+		model                   *ucloudCdnDomainResourceModel
 		createCdnDomainResponse api.CreateCdnDomainResponse
 	)
 
@@ -338,7 +338,7 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	createCdnDomainRequest, diags := r.buildCreateCdnDomainRequest(&model)
+	createCdnDomainRequest, diags := r.buildCreateCdnDomainRequest(model)
 	if diags.HasError() {
 		resp.Diagnostics.Append(diags...)
 		return
@@ -386,7 +386,7 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
-	resp.Diagnostics.Append(updateUcloudCdnDomainResourceModel(ctx, &model, domainConfig)...)
+	resp.Diagnostics.Append(updateUcloudCdnDomainResourceModel(ctx, model, domainConfig)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -395,7 +395,7 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 }
 
 func (r *ucloudCdnDomainResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var model ucloudCdnDomainResourceModel
+	var model *ucloudCdnDomainResourceModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -407,7 +407,7 @@ func (r *ucloudCdnDomainResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
-	resp.Diagnostics.Append(updateUcloudCdnDomainResourceModel(ctx, &model, domainConfig)...)
+	resp.Diagnostics.Append(updateUcloudCdnDomainResourceModel(ctx, model, domainConfig)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -417,8 +417,8 @@ func (r *ucloudCdnDomainResource) Read(ctx context.Context, req resource.ReadReq
 
 func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var (
-		model                   ucloudCdnDomainResourceModel
-		state                   ucloudCdnDomainResourceModel
+		model                   *ucloudCdnDomainResourceModel
+		state                   *ucloudCdnDomainResourceModel
 		updateCdnDomainResponse response.CommonBase
 	)
 
@@ -436,7 +436,7 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 	reconnectBackoff := backoff.NewExponentialBackOff()
 	reconnectBackoff.MaxElapsedTime = 30 * time.Second
 	updateDomainConfig := func() error {
-		err = r.client.InvokeAction("UpdateUcdnDomainConfig", r.buildUpdateCdnDomainRequest(&model), &updateCdnDomainResponse)
+		err = r.client.InvokeAction("UpdateUcdnDomainConfig", r.buildUpdateCdnDomainRequest(model), &updateCdnDomainResponse)
 		if err != nil {
 			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
 				return err
@@ -454,7 +454,7 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 		return
 	}
 
-	copyUcloudCdnDomainResourceModelComputeFields(&model, &state)
+	copyUcloudCdnDomainResourceModelComputeFields(model, state)
 
 	status, err := api.WaitForDomainStatus(r.client, model.DomainId.ValueString(), []string{api.DomainStatusEnable})
 	if err != nil {
@@ -468,7 +468,7 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 
 func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var (
-		model                          ucloudCdnDomainResourceModel
+		model                          *ucloudCdnDomainResourceModel
 		updateUcdnDomainStatusResponse response.CommonBase
 	)
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
@@ -523,7 +523,7 @@ func (r *ucloudCdnDomainResource) ImportState(ctx context.Context, req resource.
 }
 
 func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
-	var plan ucloudCdnDomainResourceModel
+	var plan *ucloudCdnDomainResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	if resp.Diagnostics.HasError() {
 		return
