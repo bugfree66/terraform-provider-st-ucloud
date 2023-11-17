@@ -468,7 +468,7 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 
 func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var (
-		model                          *ucloudCdnDomainResourceModel
+		model                          ucloudCdnDomainResourceModel
 		updateUcdnDomainStatusResponse response.CommonBase
 	)
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
