@@ -529,6 +529,10 @@ func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.M
 		return
 	}
 
+	if plan == nil {
+		return
+	}
+
 	if plan.OriginConfig != nil {
 		if plan.OriginConfig.OriginHost.IsNull() || plan.OriginConfig.OriginHost.IsUnknown() {
 			plan.OriginConfig.OriginHost = plan.Domain
