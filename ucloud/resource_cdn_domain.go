@@ -570,7 +570,7 @@ func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.M
 		})
 	}
 
-	if plan.AccessControlConfig.IsNull() || plan.AccessControlConfig.IsUnknown() || plan.AccessControlConfig.Attributes()["refer_conf"].IsNull() {
+	if plan.AccessControlConfig.IsNull() || plan.AccessControlConfig.IsUnknown() || plan.AccessControlConfig.Attributes()["refer_conf"].IsNull() || plan.AccessControlConfig.Attributes()["refer_conf"].IsUnknown() {
 		referConfig := types.ObjectValueMust(ucloudReferConfigAttributeTypes, map[string]attr.Value{
 			"refer_list": types.ListValueMust(types.StringType, []attr.Value{}),
 			"null_refer": types.Int64Value(0),
@@ -642,7 +642,7 @@ func (r *ucloudCdnDomainResource) buildUpdateCdnDomainRequest(m *ucloudCdnDomain
 		for _, rule := range m.CacheConf.RuleList {
 			uc := api.UpdateCdnCache{}
 			uc.PathPattern = rule.PathPattern.ValueString()
-			uc.TTL = rule.TTL.ValueInt64()
+			uc.CacheTTL = rule.TTL.ValueInt64()
 			uc.FollowOriginRule = rule.FollowOriginRule.ValueBoolPointer()
 			uc.Description = rule.Description.ValueStringPointer()
 			uc.CacheUnit = rule.CacheUnit.ValueString()
@@ -653,15 +653,33 @@ func (r *ucloudCdnDomainResource) buildUpdateCdnDomainRequest(m *ucloudCdnDomain
 	// access control
 	if !m.AccessControlConfig.IsNull() {
 		m.AccessControlConfig.Attributes()["ip_blacklist"].(types.List).ElementsAs(nil, &domainConf.AccessControlConf.IpBlackList, false)
+		if len(domainConf.AccessControlConf.IpBlackList) == 0 {
+			domainConf.AccessControlConf.IpBlackListEmpty = true
+		}
 		domainConf.AccessControlConf.ReferConf.NullRefer = m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["null_refer"].(types.Int64).ValueInt64Pointer()
 		domainConf.AccessControlConf.ReferConf.ReferType = m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["refer_type"].(types.Int64).ValueInt64Pointer()
 		m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["refer_list"].(types.List).ElementsAs(nil, &domainConf.AccessControlConf.ReferConf.ReferList, false)
+		if len(domainConf.AccessControlConf.ReferConf.ReferList) == 0 {
+			domainConf.AccessControlConf.EnableRefer = false
+		} else {
+			domainConf.AccessControlConf.EnableRefer = true
+		}
 	}
 	// advanced config
 	if !m.AdvancedConf.IsNull() {
 		domainConf.AdvancedConf.Http2Https = m.AdvancedConf.Attributes()["http_to_https"].(types.Bool).ValueBoolPointer()
 		m.AdvancedConf.Attributes()["http_client_header_list"].(types.List).ElementsAs(nil, &domainConf.AdvancedConf.HttpClientHeader, false)
+		if len(domainConf.AdvancedConf.HttpClientHeader) == 0 {
+			domainConf.AdvancedConf.HttpClientHeaderEmpty = true
+		} else {
+			domainConf.AdvancedConf.HttpClientHeaderEmpty = false
+		}
 		m.AdvancedConf.Attributes()["http_origin_header_list"].(types.List).ElementsAs(nil, &domainConf.AdvancedConf.HttpOriginHeader, false)
+		if len(domainConf.AdvancedConf.HttpOriginHeader) == 0 {
+			domainConf.AdvancedConf.HttpOriginHeaderEmpty = true
+		} else {
+			domainConf.AdvancedConf.HttpOriginHeaderEmpty = false
+		}
 	}
 
 	return &api.UpdateCdnDomainRequest{

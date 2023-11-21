@@ -212,7 +212,8 @@ type UpdateCdnOriginConfig struct {
 }
 
 type UpdateCdnAccessControlConfig struct {
-	IpBlackList []string
+	IpBlackList      []string
+	IpBlackListEmpty bool
 
 	ReferConf struct {
 		ReferType *int64
@@ -225,7 +226,7 @@ type UpdateCdnAccessControlConfig struct {
 type UpdateCdnCache struct {
 	PathPattern      string
 	Description      *string
-	TTL              int64
+	CacheTTL         int64
 	CacheUnit        string
 	CacheBehavior    bool
 	FollowOriginRule *bool
@@ -237,9 +238,11 @@ type UpdateCdnCacheConfig struct {
 }
 
 type UpdateCdnAdvancedConfig struct {
-	HttpClientHeader []string
-	HttpOriginHeader []string
-	Http2Https       *bool
+	HttpClientHeader      []string
+	HttpClientHeaderEmpty bool
+	HttpOriginHeader      []string
+	HttpOriginHeaderEmpty bool
+	Http2Https            *bool
 }
 
 type UpdateCdnDomainConfig struct {
