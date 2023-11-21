@@ -225,8 +225,8 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 						Computed: true,
 					},
 				},
-				Computed: true,
 				Optional: true,
+				Computed: true,
 			},
 		},
 		Blocks: map[string]schema.Block{
