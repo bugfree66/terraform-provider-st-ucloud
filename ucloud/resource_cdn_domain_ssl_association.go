@@ -60,7 +60,7 @@ func (r *ucloudCdnDomainSslAssociationResource) Configure(_ context.Context, req
 }
 
 func (r *ucloudCdnDomainSslAssociationResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model ucloudCdnDomainSslAssociationModel
+	var model *ucloudCdnDomainSslAssociationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -73,7 +73,7 @@ func (r *ucloudCdnDomainSslAssociationResource) Create(ctx context.Context, req 
 }
 
 func (r *ucloudCdnDomainSslAssociationResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var model ucloudCdnDomainSslAssociationModel
+	var model *ucloudCdnDomainSslAssociationModel
 
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
@@ -85,12 +85,18 @@ func (r *ucloudCdnDomainSslAssociationResource) Read(ctx context.Context, req re
 		resp.Diagnostics.AddError("[API ERROR] Fail to Read CdnDomainSslAssociation", err.Error())
 		return
 	}
+
+	if domainConfig == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
 	model.SslCertificateName = types.StringPointerValue(&domainConfig.CertNameCn)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
+	resp.State.Set(ctx, &model)
 }
 
 func (r *ucloudCdnDomainSslAssociationResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var model ucloudCdnDomainSslAssociationModel
+	var model *ucloudCdnDomainSslAssociationModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -104,7 +110,7 @@ func (r *ucloudCdnDomainSslAssociationResource) Update(ctx context.Context, req 
 }
 
 func (r *ucloudCdnDomainSslAssociationResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var model ucloudCdnDomainSslAssociationModel
+	var model *ucloudCdnDomainSslAssociationModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return

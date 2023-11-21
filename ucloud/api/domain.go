@@ -77,6 +77,9 @@ func UpdateDomainHttpsConfig(client *ucdn.UCDNClient, domainId string, enable bo
 	if err != nil {
 		return err
 	}
+	if domainConfig == nil {
+		return errors.New("domain config is nil")
+	}
 	areaCode := domainConfig.AreaCode
 	areas := make([]string, 0)
 	if areaCode == "all" {
@@ -152,9 +155,6 @@ func GetUcdnDomainConfig(client *ucdn.UCDNClient, domainId string) (*ucdn.Domain
 		if getUcdnDomainConfigResponse.RetCode != 0 {
 			return backoff.Permanent(fmt.Errorf("%s", getUcdnDomainConfigResponse.Message))
 		}
-		if len(getUcdnDomainConfigResponse.DomainList) == 0 {
-			return backoff.Permanent(fmt.Errorf("%s", "Domain list is empty"))
-		}
 		return nil
 	}
 	reconnectBackoff := backoff.NewExponentialBackOff()
@@ -164,6 +164,9 @@ func GetUcdnDomainConfig(client *ucdn.UCDNClient, domainId string) (*ucdn.Domain
 		return nil, err
 	}
 
+	if len(getUcdnDomainConfigResponse.DomainList) == 0 {
+		return nil, nil
+	}
 	return &getUcdnDomainConfigResponse.DomainList[0], nil
 }
 

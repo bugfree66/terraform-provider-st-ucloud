@@ -407,11 +407,15 @@ func (r *ucloudCdnDomainResource) Read(ctx context.Context, req resource.ReadReq
 		return
 	}
 
+	if domainConfig == nil {
+		resp.State.RemoveResource(ctx)
+		return
+	}
+
 	resp.Diagnostics.Append(updateUcloudCdnDomainResourceModel(ctx, model, domainConfig)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-
 	resp.Diagnostics.Append(resp.State.Set(ctx, &model)...)
 }
 
@@ -687,6 +691,11 @@ func copyUcloudCdnDomainResourceModelComputeFields(dst, src *ucloudCdnDomainReso
 
 func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) diag.Diagnostics {
 	var diags, result diag.Diagnostics
+
+	if info == nil {
+		result.AddError("[Invalid response]", "domain config is nil")
+		return result
+	}
 
 	model.AreaCode = types.StringValue(info.AreaCode)
 	model.CdnType = types.StringValue(info.CdnType)
