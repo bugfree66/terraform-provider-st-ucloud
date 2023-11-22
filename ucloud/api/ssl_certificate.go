@@ -119,7 +119,7 @@ func DeleteCertificate(client *ucdn.UCDNClient, name string) error {
 
 func DeleteUnusedCertificate(client *ucdn.UCDNClient, name string) {
 	cert := GetCertificates(client, name)
-	if cert == nil || len(cert) == 0 {
+	if cert == nil || len(cert) == 0 || cert[0].DomainCount > 0 {
 		return
 	}
 	DeleteCertificate(client, name)

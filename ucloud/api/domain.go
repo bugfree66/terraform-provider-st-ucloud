@@ -259,3 +259,39 @@ type UpdateCdnDomainRequest struct {
 
 	DomainList []UpdateCdnDomainConfig
 }
+
+func UpdateCdnDomain(client *ucdn.UCDNClient, req *UpdateCdnDomainRequest) error {
+	if req == nil || len(req.DomainList) == 0 {
+		return errors.New("UpdateCdnDomainRequest is empty")
+	}
+
+	var (
+		err                     error
+		updateCdnDomainResponse response.CommonBase
+	)
+	reconnectBackoff := backoff.NewExponentialBackOff()
+	reconnectBackoff.MaxElapsedTime = 30 * time.Second
+	updateDomainConfig := func() error {
+		err = client.InvokeAction("UpdateUcdnDomainConfig", req, &updateCdnDomainResponse)
+		if err != nil {
+			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
+				return err
+			}
+			return backoff.Permanent(err)
+		}
+		if updateCdnDomainResponse.RetCode != 0 && updateCdnDomainResponse.RetCode != 44015 {
+			return backoff.Permanent(fmt.Errorf("%s", updateCdnDomainResponse.Message))
+		}
+		return nil
+	}
+	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
+	if err != nil {
+		return err
+	}
+
+	_, err = WaitForDomainStatus(client, req.DomainList[0].DomainId, []string{DomainStatusEnable})
+	if err != nil {
+		return err
+	}
+	return nil
+}

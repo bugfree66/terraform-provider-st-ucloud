@@ -380,6 +380,11 @@ func (r *ucloudCdnDomainResource) Create(ctx context.Context, req resource.Creat
 		return
 	}
 
+	err = api.UpdateCdnDomain(r.client, r.buildUpdateCdnDomainRequest(model))
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR] Fail to Update CdnDomain", err.Error())
+	}
+
 	domainConfig, err := api.GetUcdnDomainConfig(r.client, model.DomainId.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Fail to Get CdnDomain", err.Error())
@@ -421,9 +426,8 @@ func (r *ucloudCdnDomainResource) Read(ctx context.Context, req resource.ReadReq
 
 func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var (
-		model                   *ucloudCdnDomainResourceModel
-		state                   *ucloudCdnDomainResourceModel
-		updateCdnDomainResponse response.CommonBase
+		model *ucloudCdnDomainResourceModel
+		state *ucloudCdnDomainResourceModel
 	)
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &model)...)
@@ -436,38 +440,15 @@ func (r *ucloudCdnDomainResource) Update(ctx context.Context, req resource.Updat
 	}
 	model.DomainId = state.DomainId
 
-	var err error
-	reconnectBackoff := backoff.NewExponentialBackOff()
-	reconnectBackoff.MaxElapsedTime = 30 * time.Second
-	updateDomainConfig := func() error {
-		err = r.client.InvokeAction("UpdateUcdnDomainConfig", r.buildUpdateCdnDomainRequest(model), &updateCdnDomainResponse)
-		if err != nil {
-			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
-				return err
-			}
-			return backoff.Permanent(err)
-		}
-		if updateCdnDomainResponse.RetCode != 0 && updateCdnDomainResponse.RetCode != 44015 {
-			return backoff.Permanent(fmt.Errorf("%s", updateCdnDomainResponse.Message))
-		}
-		return nil
-	}
-	err = backoff.Retry(updateDomainConfig, reconnectBackoff)
+	err := api.UpdateCdnDomain(r.client, r.buildUpdateCdnDomainRequest(model))
 	if err != nil {
 		resp.Diagnostics.AddError("[API ERROR] Fail to Update CdnDomain", err.Error())
-		return
 	}
 
 	copyUcloudCdnDomainResourceModelComputeFields(model, state)
+	model.Status = types.StringValue(api.DomainStatusEnable)
 
-	status, err := api.WaitForDomainStatus(r.client, model.DomainId.ValueString(), []string{api.DomainStatusEnable})
-	if err != nil {
-		resp.Diagnostics.AddError("[API ERROR] Fail to get update status", err.Error())
-		return
-	}
-	model.Status = types.StringValue(status)
-
-	resp.State.Set(ctx, model)
+	resp.State.Set(ctx, &model)
 }
 
 func (r *ucloudCdnDomainResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
