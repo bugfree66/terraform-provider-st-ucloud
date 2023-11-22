@@ -47,35 +47,18 @@ type ucloudCacheConfigModel struct {
 	RuleList  []*ucloudCacheRuleModel `tfsdk:"cache_rule"`
 }
 
-type ucloudReferConfigModel struct {
-	ReferType types.Int64 `tfsdk:"refer_type"`
-	NullRefer types.Int64 `tfsdk:"null_refer"`
-	ReferList types.List  `tfsdk:"refer_list"`
-}
-
-var ucloudReferConfigAttributeTypes map[string]attr.Type = map[string]attr.Type{
+var ucloudReferConfigAttributeTypes = map[string]attr.Type{
 	"refer_type": types.Int64Type,
 	"null_refer": types.Int64Type,
 	"refer_list": types.ListType{}.WithElementType(types.StringType),
 }
 
-type ucloudAccessControlConfigModel struct {
-	IpBlackList types.List              `tfsdk:"ip_blacklist"`
-	ReferConf   *ucloudReferConfigModel `tfsdk:"refer_conf"`
-}
-
-var ucloudAccessControlConfigAttributeTypes map[string]attr.Type = map[string]attr.Type{
+var ucloudAccessControlConfigAttributeTypes = map[string]attr.Type{
 	"ip_blacklist": types.ListType{}.WithElementType(types.StringType),
 	"refer_conf":   types.ObjectType{}.WithAttributeTypes(ucloudReferConfigAttributeTypes),
 }
 
-type ucloudAdvancedConfModel struct {
-	HttpClientHeaderList types.List `tfsdk:"http_client_header_list"`
-	HttpOriginHeaderList types.List `tfsdk:"http_origin_header_list"`
-	Http2Https           types.Bool `tfsdk:"http_to_https"`
-}
-
-var ucloudAdvancedConfigAttributeTypes map[string]attr.Type = map[string]attr.Type{
+var ucloudAdvancedConfigAttributeTypes = map[string]attr.Type{
 	"http_client_header_list": types.ListType{}.WithElementType(types.StringType),
 	"http_origin_header_list": types.ListType{}.WithElementType(types.StringType),
 	"http_to_https":           types.BoolType,
