@@ -71,7 +71,7 @@ func (r *ucloudSslCertificateResource) Configure(_ context.Context, req resource
 }
 
 func (r *ucloudSslCertificateResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var model ucloudSslCertificateResourceModel
+	var model *ucloudSslCertificateResourceModel
 	diags := req.Plan.Get(ctx, &model)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -87,10 +87,19 @@ func (r *ucloudSslCertificateResource) Create(ctx context.Context, req resource.
 		resp.Diagnostics.AddError("[API ERROR] Failed to Add Certificate", err.Error())
 		return
 	}
-	resp.State.Set(ctx, &model)
+	resp.State.Set(ctx, model)
 }
 
 func (r *ucloudSslCertificateResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
+	var state *ucloudSslCertificateResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	certlist := api.GetCertificates(r.client, state.CertName.ValueString())
+	if len(certlist) == 0 {
+		resp.State.RemoveResource(ctx)
+	}
 }
 
 func (r *ucloudSslCertificateResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

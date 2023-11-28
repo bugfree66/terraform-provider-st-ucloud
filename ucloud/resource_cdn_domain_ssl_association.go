@@ -86,7 +86,7 @@ func (r *ucloudCdnDomainSslAssociationResource) Read(ctx context.Context, req re
 		return
 	}
 
-	if domainConfig == nil {
+	if domainConfig == nil || domainConfig.HttpsStatusCn == "disable" {
 		resp.State.RemoveResource(ctx)
 		return
 	}
