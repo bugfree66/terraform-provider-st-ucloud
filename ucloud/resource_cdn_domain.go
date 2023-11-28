@@ -3,9 +3,11 @@ package ucloud
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/hashicorp/terraform-plugin-framework-validators/int64validator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -32,6 +34,18 @@ type ucloudCacheRuleModel struct {
 	CacheUnit        types.String `tfsdk:"cache_unit"`
 	CacheBehavior    types.Bool   `tfsdk:"cache_behavior"`
 	FollowOriginRule types.Bool   `tfsdk:"follow_origin_rule"`
+	UseRegex         types.Bool   `tfsdk:"use_regex"`
+}
+
+type ucloudHttpCodeCacheModel struct {
+	PathPattern      types.String `tfsdk:"path_pattern"`
+	Description      types.String `tfsdk:"description"`
+	TTL              types.Int64  `tfsdk:"ttl"`
+	CacheUnit        types.String `tfsdk:"cache_unit"`
+	CacheBehavior    types.Bool   `tfsdk:"cache_behavior"`
+	FollowOriginRule types.Bool   `tfsdk:"follow_origin_rule"`
+	HttpCode         types.Int64  `tfsdk:"http_code"`
+	UseRegex         types.Bool   `tfsdk:"use_regex"`
 }
 
 type ucloudOriginConfigModel struct {
@@ -43,8 +57,9 @@ type ucloudOriginConfigModel struct {
 }
 
 type ucloudCacheConfigModel struct {
-	CacheHost types.String            `tfsdk:"cache_host"`
-	RuleList  []*ucloudCacheRuleModel `tfsdk:"cache_rule"`
+	CacheHost            types.String                `tfsdk:"cache_host"`
+	RuleList             []*ucloudCacheRuleModel     `tfsdk:"cache_rule"`
+	HttpCodeCachRuleList []*ucloudHttpCodeCacheModel `tfsdk:"http_code_cache_rule"`
 }
 
 var ucloudReferConfigAttributeTypes = map[string]attr.Type{
@@ -287,10 +302,75 @@ func (r *ucloudCdnDomainResource) Schema(_ context.Context, req resource.SchemaR
 								},
 								"cache_behavior": schema.BoolAttribute{
 									Description: "If caching is enabled.The optional values are true and false.",
-									Required:    true,
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
 								},
 								"follow_origin_rule": schema.BoolAttribute{
 									Description: "If follow caching instructions in http header from the origin.The optional values are true and false.",
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
+								},
+								"use_regex": schema.BoolAttribute{
+									Description: "If use regex.Default is false",
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
+								},
+							},
+						},
+					},
+					"http_code_cache_rule": &schema.ListNestedBlock{
+						Description: "The list of http code cache rule",
+						NestedObject: schema.NestedBlockObject{
+							Attributes: map[string]schema.Attribute{
+								"path_pattern": schema.StringAttribute{
+									Description: "The pattern of path",
+									Optional:    true,
+									Computed:    true,
+									Default:     stringdefault.StaticString("/*"),
+								},
+								"description": schema.StringAttribute{
+									Description: "The description of rule",
+									Optional:    true,
+									Computed:    true,
+									Default:     stringdefault.StaticString(""),
+								},
+								"ttl": schema.Int64Attribute{
+									Description: "The cache time",
+									Optional:    true,
+									Computed:    true,
+									Default:     int64default.StaticInt64(0),
+								},
+								"cache_unit": schema.StringAttribute{
+									Description: "The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.",
+									Optional:    true,
+									Computed:    true,
+									Default:     stringdefault.StaticString("sec"),
+								},
+								"cache_behavior": schema.BoolAttribute{
+									Description: "If caching is enabled.The optional values are true and false.",
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
+								},
+								"follow_origin_rule": schema.BoolAttribute{
+									Description: "If follow caching instructions in http header from the origin.The optional values are true and false.",
+									Optional:    true,
+									Computed:    true,
+									Default:     booldefault.StaticBool(false),
+								},
+								"http_code": schema.Int64Attribute{
+									Description: "Http code,range from 200 to 600,200 and 206 are not allowed.",
+									Required:    true,
+									Validators: []validator.Int64{
+										int64validator.Between(200, 600),
+										int64validator.NoneOf(200, 206),
+									},
+								},
+								"use_regex": schema.BoolAttribute{
+									Description: "If use regex.Default is false",
 									Optional:    true,
 									Computed:    true,
 									Default:     booldefault.StaticBool(false),
@@ -521,6 +601,7 @@ func (r *ucloudCdnDomainResource) ModifyPlan(ctx context.Context, req resource.M
 			Description:      types.StringValue(""),
 			CacheBehavior:    types.BoolValue(true),
 			FollowOriginRule: types.BoolValue(false),
+			UseRegex:         types.BoolValue(false),
 		}
 		plan.CacheConf.RuleList = []*ucloudCacheRuleModel{rule}
 	}
@@ -602,16 +683,30 @@ func (r *ucloudCdnDomainResource) buildUpdateCdnDomainRequest(m *ucloudCdnDomain
 	// cache control
 	if m.CacheConf != nil {
 		domainConf.CacheConf.CacheHost = m.CacheConf.CacheHost.ValueStringPointer()
-		domainConf.CacheConf.CacheList = make([]api.UpdateCdnCache, 0)
+		domainConf.CacheConf.CacheList = make([]api.CdnCacheRule, 0)
 		for _, rule := range m.CacheConf.RuleList {
-			uc := api.UpdateCdnCache{}
-			uc.PathPattern = rule.PathPattern.ValueString()
-			uc.CacheTTL = rule.TTL.ValueInt64()
-			uc.FollowOriginRule = rule.FollowOriginRule.ValueBoolPointer()
-			uc.Description = rule.Description.ValueStringPointer()
-			uc.CacheUnit = rule.CacheUnit.ValueString()
-			uc.CacheBehavior = rule.CacheBehavior.ValueBool()
-			domainConf.CacheConf.CacheList = append(domainConf.CacheConf.CacheList, uc)
+			rule := api.CdnCacheRule{
+				PathPattern:      rule.PathPattern.ValueString(),
+				CacheTTL:         int(rule.TTL.ValueInt64()),
+				CacheUnit:        rule.CacheUnit.ValueString(),
+				CacheBehavior:    rule.CacheBehavior.ValueBool(),
+				Description:      rule.Description.ValueString(),
+				FollowOriginRule: rule.FollowOriginRule.ValueBool(),
+			}
+			domainConf.CacheConf.CacheList = append(domainConf.CacheConf.CacheList, rule)
+		}
+		domainConf.CacheConf.HttpCodeCacheList = make([]api.CdnCacheRule, 0)
+		for _, rule := range m.CacheConf.HttpCodeCachRuleList {
+			rule := api.CdnCacheRule{
+				PathPattern:      rule.PathPattern.ValueString(),
+				CacheTTL:         int(rule.TTL.ValueInt64()),
+				CacheUnit:        rule.CacheUnit.ValueString(),
+				CacheBehavior:    rule.CacheBehavior.ValueBool(),
+				Description:      rule.Description.ValueString(),
+				FollowOriginRule: rule.FollowOriginRule.ValueBool(),
+				HttpCodePattern:  fmt.Sprintf("%d", rule.HttpCode.ValueInt64()),
+			}
+			domainConf.CacheConf.HttpCodeCacheList = append(domainConf.CacheConf.HttpCodeCacheList, rule)
 		}
 	}
 	// access control
@@ -671,7 +766,7 @@ func copyUcloudCdnDomainResourceModelComputeFields(dst, src *ucloudCdnDomainReso
 	dst.CreateTime = src.CreateTime
 }
 
-func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDomainResourceModel, info *ucdn.DomainConfigInfo) diag.Diagnostics {
+func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDomainResourceModel, info *api.DomainConfigInfo) diag.Diagnostics {
 	var diags, result diag.Diagnostics
 
 	if info == nil {
@@ -698,18 +793,38 @@ func updateUcloudCdnDomainResourceModel(ctx context.Context, model *ucloudCdnDom
 	model.OriginConfig.OriginFollow301 = types.Int64Value(int64(info.OriginConf.OriginFollow301))
 
 	model.CacheConf = &ucloudCacheConfigModel{}
-	model.CacheConf.CacheHost = types.StringValue(info.CacheConf.CacheHost)
+	model.CacheConf.CacheHost = types.StringPointerValue(info.CacheConf.CacheHost)
 	model.CacheConf.RuleList = make([]*ucloudCacheRuleModel, 0)
-	for _, conf := range info.CacheConf.CacheList {
+	model.CacheConf.HttpCodeCachRuleList = make([]*ucloudHttpCodeCacheModel, 0)
+	for _, rule := range info.CacheConf.CacheList {
 		c := &ucloudCacheRuleModel{
-			PathPattern:      types.StringValue(conf.PathPattern),
-			Description:      types.StringValue(conf.Description),
-			TTL:              types.Int64Value(int64(conf.CacheTTL)),
-			CacheUnit:        types.StringValue(conf.CacheUnit),
-			CacheBehavior:    types.BoolValue(conf.CacheBehavior),
-			FollowOriginRule: types.BoolValue(conf.FollowOriginRule),
+			PathPattern:      types.StringValue(rule.PathPattern),
+			Description:      types.StringValue(rule.Description),
+			TTL:              types.Int64Value(int64(rule.CacheTTL)),
+			CacheUnit:        types.StringValue(rule.CacheUnit),
+			CacheBehavior:    types.BoolValue(rule.CacheBehavior),
+			FollowOriginRule: types.BoolValue(rule.FollowOriginRule),
+			UseRegex:         types.BoolValue(rule.UseRegex),
 		}
 		model.CacheConf.RuleList = append(model.CacheConf.RuleList, c)
+	}
+	for _, rule := range info.CacheConf.HttpCodeCacheList {
+		c := &ucloudHttpCodeCacheModel{
+			PathPattern:      types.StringValue(rule.PathPattern),
+			Description:      types.StringValue(rule.Description),
+			TTL:              types.Int64Value(int64(rule.CacheTTL)),
+			CacheUnit:        types.StringValue(rule.CacheUnit),
+			CacheBehavior:    types.BoolValue(rule.CacheBehavior),
+			FollowOriginRule: types.BoolValue(rule.FollowOriginRule),
+			UseRegex:         types.BoolValue(rule.UseRegex),
+		}
+		code, err := strconv.Atoi(rule.HttpCodePattern)
+		if err != nil {
+			result.AddError("[Invalid Api Response]", err.Error())
+			return result
+		}
+		c.HttpCode = types.Int64Value(int64(code))
+		model.CacheConf.HttpCodeCachRuleList = append(model.CacheConf.HttpCodeCachRuleList, c)
 	}
 
 	referList, diags := types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.ReferConf.ReferList)

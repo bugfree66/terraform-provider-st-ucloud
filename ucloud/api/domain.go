@@ -132,7 +132,7 @@ func UpdateDomainHttpsConfig(client *ucdn.UCDNClient, domainId string, enable bo
 	return nil
 }
 
-func GetUcdnDomainConfig(client *ucdn.UCDNClient, domainId string) (*ucdn.DomainConfigInfo, error) {
+func GetUcdnDomainConfig(client *ucdn.UCDNClient, domainId string) (*DomainConfigInfo, error) {
 	getUcdnDomainConfigRequest := ucdn.GetUcdnDomainConfigRequest{
 		CommonBase: request.CommonBase{
 			ProjectId: &client.GetConfig().ProjectId,
@@ -141,11 +141,11 @@ func GetUcdnDomainConfig(client *ucdn.UCDNClient, domainId string) (*ucdn.Domain
 	}
 
 	var (
-		getUcdnDomainConfigResponse *ucdn.GetUcdnDomainConfigResponse
+		getUcdnDomainConfigResponse getUcdnDomainConfigResponse
 		err                         error
 	)
 	getDomainConfig := func() error {
-		getUcdnDomainConfigResponse, err = client.GetUcdnDomainConfig(&getUcdnDomainConfigRequest)
+		err = client.InvokeAction("GetUcdnDomainConfig", &getUcdnDomainConfigRequest, &getUcdnDomainConfigResponse)
 		if err != nil {
 			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
 				return err
@@ -203,6 +203,48 @@ type CreateCdnDomainResponse struct {
 	} `json:"DomainList"`
 }
 
+type CdnCacheRule struct {
+	CacheBehavior    bool
+	CacheTTL         int
+	CacheUnit        string
+	Description      string
+	FollowOriginRule bool
+	HttpCodePattern  string
+	PathPattern      string
+	UseRegex         bool
+}
+
+type CdnCacheConfig struct {
+	CacheHost         *string
+	CacheList         []CdnCacheRule
+	HttpCodeCacheList []CdnCacheRule
+}
+
+type DomainConfigInfo struct {
+	AccessControlConf ucdn.AccessControlConf
+	AdvancedConf      ucdn.AdvancedConf
+	AreaCode          string
+	CacheConf         CdnCacheConfig
+	CdnType           string
+	CertNameAbroad    string
+	CertNameCn        string
+	Cname             string
+	CreateTime        int
+	Domain            string
+	DomainId          string
+	HttpsStatusAbroad string
+	HttpsStatusCn     string
+	OriginConf        ucdn.OriginConf
+	Status            string
+	Tag               string
+	TestUrl           string
+}
+
+type getUcdnDomainConfigResponse struct {
+	response.CommonBase
+	DomainList []DomainConfigInfo
+}
+
 type UpdateCdnOriginConfig struct {
 	OriginIp        []string
 	OriginHost      *string
@@ -223,20 +265,6 @@ type UpdateCdnAccessControlConfig struct {
 	EnableRefer bool
 }
 
-type UpdateCdnCache struct {
-	PathPattern      string
-	Description      *string
-	CacheTTL         int64
-	CacheUnit        string
-	CacheBehavior    bool
-	FollowOriginRule *bool
-}
-
-type UpdateCdnCacheConfig struct {
-	CacheHost *string
-	CacheList []UpdateCdnCache
-}
-
 type UpdateCdnAdvancedConfig struct {
 	HttpClientHeader      []string
 	HttpClientHeaderEmpty bool
@@ -250,7 +278,7 @@ type UpdateCdnDomainConfig struct {
 
 	OriginConf        UpdateCdnOriginConfig
 	AccessControlConf UpdateCdnAccessControlConfig
-	CacheConf         UpdateCdnCacheConfig
+	CacheConf         CdnCacheConfig
 	AdvancedConf      UpdateCdnAdvancedConfig
 }
 

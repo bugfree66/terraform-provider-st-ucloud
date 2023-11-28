@@ -109,21 +109,41 @@ Optional:
 
 - `cache_host` (String) Cache Host
 - `cache_rule` (Block List) The list of cache rule (see [below for nested schema](#nestedblock--cache_conf--cache_rule))
+- `http_code_cache_rule` (Block List) The list of http code cache rule (see [below for nested schema](#nestedblock--cache_conf--http_code_cache_rule))
 
 <a id="nestedblock--cache_conf--cache_rule"></a>
 ### Nested Schema for `cache_conf.cache_rule`
 
 Required:
 
-- `cache_behavior` (Boolean) If caching is enabled.The optional values are true and false.
 - `path_pattern` (String) The pattern of path
 
 Optional:
 
+- `cache_behavior` (Boolean) If caching is enabled.The optional values are true and false.
 - `cache_unit` (String) The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.
 - `description` (String) The description of rule
 - `follow_origin_rule` (Boolean) If follow caching instructions in http header from the origin.The optional values are true and false.
 - `ttl` (Number) The cache time
+- `use_regex` (Boolean) If use regex.Default is false
+
+
+<a id="nestedblock--cache_conf--http_code_cache_rule"></a>
+### Nested Schema for `cache_conf.http_code_cache_rule`
+
+Required:
+
+- `http_code` (Number) Http code,range from 200 to 600,200 and 206 are not allowed.
+
+Optional:
+
+- `cache_behavior` (Boolean) If caching is enabled.The optional values are true and false.
+- `cache_unit` (String) The unit of caching time.The optional values are `sec`,`min`,`hour` and `day`.
+- `description` (String) The description of rule
+- `follow_origin_rule` (Boolean) If follow caching instructions in http header from the origin.The optional values are true and false.
+- `path_pattern` (String) The pattern of path
+- `ttl` (Number) The cache time
+- `use_regex` (Boolean) If use regex.Default is false
 
 
 

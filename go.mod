@@ -7,7 +7,7 @@ require (
 	github.com/hashicorp/terraform-plugin-docs v0.16.0
 	github.com/hashicorp/terraform-plugin-framework v1.3.5
 	github.com/hashicorp/terraform-plugin-framework-validators v0.12.0
-	github.com/ucloud/ucloud-sdk-go v0.22.3
+	github.com/ucloud/ucloud-sdk-go v0.22.10
 	golang.org/x/net v0.11.0
 )
 
