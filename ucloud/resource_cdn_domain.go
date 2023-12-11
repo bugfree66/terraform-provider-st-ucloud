@@ -2,6 +2,7 @@ package ucloud
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -53,18 +54,17 @@ type originConfigModel struct {
 	OriginHost      types.String `tfsdk:"origin_host"`
 	OriginPort      types.Int64  `tfsdk:"origin_port"`
 	OriginProtocol  types.String `tfsdk:"origin_protocol"`
-	OriginFollow301 types.Int64  `tfsdk:"origin_follow301"`
+	OriginFollow301 types.Bool   `tfsdk:"origin_follow301"`
 }
 
 type cacheConfigModel struct {
-	CacheHost            types.String          `tfsdk:"cache_host"`
 	RuleList             []*cacheRuleModel     `tfsdk:"cache_rule"`
 	HttpCodeCachRuleList []*httpCodeCacheModel `tfsdk:"http_code_cache_rule"`
 }
 
 var referConfigAttributeTypes = map[string]attr.Type{
-	"refer_type": types.Int64Type,
-	"null_refer": types.Int64Type,
+	"refer_type": types.StringType,
+	"null_refer": types.BoolType,
 	"refer_list": types.ListType{}.WithElementType(types.StringType),
 }
 
@@ -199,17 +199,20 @@ func (r *cdnDomainResource) Schema(_ context.Context, req resource.SchemaRequest
 					"refer_conf": &schema.SingleNestedAttribute{
 						Description: "",
 						Attributes: map[string]schema.Attribute{
-							"refer_type": schema.Int64Attribute{
+							"refer_type": schema.StringAttribute{
 								Description: "The type of anti-leech rules.If the value is 0,`refer_list` is whitelist,requests with these refers will be allowed.If the value is 1,`refer_list` is blacklist,requests with these refers will be denied.",
 								Optional:    true,
 								Computed:    true,
-								Default:     int64default.StaticInt64(0),
+								Default:     stringdefault.StaticString("whitelist"),
+								Validators: []validator.String{
+									stringvalidator.OneOf("whitelist", "blacklist"),
+								},
 							},
-							"null_refer": schema.Int64Attribute{
-								Description: "When `refer_type` is 0,if the value is 0,NULL refer requests are not allowed.",
+							"null_refer": schema.BoolAttribute{
+								Description: "When `refer_type` is whitelist and `null_refer` is false,NULL refer requests are not allowed.",
 								Optional:    true,
 								Computed:    true,
-								Default:     int64default.StaticInt64(0),
+								Default:     booldefault.StaticBool(false),
 							},
 							"refer_list": schema.ListAttribute{
 								Description: "The anti-leech rule list",
@@ -256,23 +259,16 @@ func (r *cdnDomainResource) Schema(_ context.Context, req resource.SchemaRequest
 						},
 						Default: stringdefault.StaticString("http"),
 					},
-					"origin_follow301": schema.Int64Attribute{
-						Description: "Whether redirect according to the url from origin.The optional values are 0 and 1",
+					"origin_follow301": schema.BoolAttribute{
+						Description: "Whether redirect according to the url from origin.The optional values are true and false",
 						Optional:    true,
 						Computed:    true,
-						Default:     int64default.StaticInt64(0),
+						Default:     booldefault.StaticBool(false),
 					},
 				},
 			},
 			"cache_conf": schema.SingleNestedBlock{
 				Description: "The configuration of cache",
-				Attributes: map[string]schema.Attribute{
-					"cache_host": schema.StringAttribute{
-						Description: "Cache Host",
-						Optional:    true,
-						Computed:    true,
-					},
-				},
 				Blocks: map[string]schema.Block{
 					"cache_rule": &schema.ListNestedBlock{
 						Description: "The list of cache rule",
@@ -414,12 +410,12 @@ func (r *cdnDomainResource) Create(ctx context.Context, req resource.CreateReque
 			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
 				return err
 			}
+			if api.Retryable(createCdnDomainResponse.RetCode) {
+				return errors.New(createCdnDomainResponse.Message)
+			}
 			return backoff.Permanent(err)
 		}
 
-		if createCdnDomainResponse.RetCode != 0 {
-			return backoff.Permanent(fmt.Errorf("%s", createCdnDomainResponse.Message))
-		}
 		if len(createCdnDomainResponse.DomainList) == 0 {
 			return backoff.Permanent(fmt.Errorf("%s", "domain list is empty"))
 		}
@@ -545,10 +541,10 @@ func (r *cdnDomainResource) Delete(ctx context.Context, req resource.DeleteReque
 			if cErr, ok := err.(uerr.ClientError); ok && cErr.Retryable() {
 				return err
 			}
+			if api.Retryable(updateUcdnDomainStatusResponse.RetCode) {
+				return errors.New(updateUcdnDomainStatusResponse.Message)
+			}
 			return backoff.Permanent(err)
-		}
-		if updateUcdnDomainStatusResponse.RetCode != 0 {
-			return backoff.Permanent(fmt.Errorf("%s", updateUcdnDomainStatusResponse.Message))
 		}
 		return nil
 	}
@@ -590,9 +586,6 @@ func (r *cdnDomainResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 	if plan.CacheConf == nil {
 		plan.CacheConf = &cacheConfigModel{}
 	}
-	if plan.CacheConf.CacheHost.IsNull() || plan.CacheConf.CacheHost.IsUnknown() {
-		plan.CacheConf.CacheHost = plan.Domain
-	}
 	if plan.CacheConf.RuleList == nil || len(plan.CacheConf.RuleList) == 0 {
 		rule := &cacheRuleModel{
 			PathPattern:      types.StringValue("/"),
@@ -618,8 +611,8 @@ func (r *cdnDomainResource) ModifyPlan(ctx context.Context, req resource.ModifyP
 	if plan.AccessControlConfig.IsNull() || plan.AccessControlConfig.IsUnknown() || plan.AccessControlConfig.Attributes()["refer_conf"].IsNull() || plan.AccessControlConfig.Attributes()["refer_conf"].IsUnknown() {
 		referConfig := types.ObjectValueMust(referConfigAttributeTypes, map[string]attr.Value{
 			"refer_list": types.ListValueMust(types.StringType, []attr.Value{}),
-			"null_refer": types.Int64Value(0),
-			"refer_type": types.Int64Value(0),
+			"null_refer": types.BoolValue(false),
+			"refer_type": types.StringValue("whitelist"),
 		})
 		if plan.AccessControlConfig.IsNull() || plan.AccessControlConfig.IsUnknown() {
 			plan.AccessControlConfig = types.ObjectValueMust(accessControlConfigAttributeTypes, map[string]attr.Value{
@@ -678,11 +671,14 @@ func (r *cdnDomainResource) buildUpdateCdnDomainRequest(m *cdnDomainResourceMode
 		domainConf.OriginConf.OriginHost = m.OriginConfig.OriginHost.ValueStringPointer()
 		domainConf.OriginConf.OriginPort = m.OriginConfig.OriginPort.ValueInt64Pointer()
 		domainConf.OriginConf.OriginProtocol = m.OriginConfig.OriginProtocol.ValueStringPointer()
-		domainConf.OriginConf.OriginFollow301 = m.OriginConfig.OriginFollow301.ValueInt64Pointer()
+		val := int64(0)
+		if m.OriginConfig.OriginFollow301.ValueBool() {
+			val = 1
+		}
+		domainConf.OriginConf.OriginFollow301 = &val
 	}
 	// cache control
 	if m.CacheConf != nil {
-		domainConf.CacheConf.CacheHost = m.CacheConf.CacheHost.ValueStringPointer()
 		domainConf.CacheConf.CacheList = make([]api.CdnCacheRule, 0)
 		for _, rule := range m.CacheConf.RuleList {
 			rule := api.CdnCacheRule{
@@ -692,6 +688,7 @@ func (r *cdnDomainResource) buildUpdateCdnDomainRequest(m *cdnDomainResourceMode
 				CacheBehavior:    rule.CacheBehavior.ValueBool(),
 				Description:      rule.Description.ValueString(),
 				FollowOriginRule: rule.FollowOriginRule.ValueBool(),
+				UseRegex:         rule.UseRegex.ValueBool(),
 			}
 			domainConf.CacheConf.CacheList = append(domainConf.CacheConf.CacheList, rule)
 		}
@@ -705,6 +702,7 @@ func (r *cdnDomainResource) buildUpdateCdnDomainRequest(m *cdnDomainResourceMode
 				Description:      rule.Description.ValueString(),
 				FollowOriginRule: rule.FollowOriginRule.ValueBool(),
 				HttpCodePattern:  fmt.Sprintf("%d", rule.HttpCode.ValueInt64()),
+				UseRegex:         rule.UseRegex.ValueBool(),
 			}
 			domainConf.CacheConf.HttpCodeCacheList = append(domainConf.CacheConf.HttpCodeCacheList, rule)
 		}
@@ -715,8 +713,26 @@ func (r *cdnDomainResource) buildUpdateCdnDomainRequest(m *cdnDomainResourceMode
 		if len(domainConf.AccessControlConf.IpBlackList) == 0 {
 			domainConf.AccessControlConf.IpBlackListEmpty = true
 		}
-		domainConf.AccessControlConf.ReferConf.NullRefer = m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["null_refer"].(types.Int64).ValueInt64Pointer()
-		domainConf.AccessControlConf.ReferConf.ReferType = m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["refer_type"].(types.Int64).ValueInt64Pointer()
+		nullRefer := m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["null_refer"].(types.Bool).ValueBoolPointer()
+		if nullRefer == nil {
+			domainConf.AccessControlConf.ReferConf.NullRefer = nil
+		} else {
+			val := 0
+			if *nullRefer {
+				val = 1
+			}
+			domainConf.AccessControlConf.ReferConf.NullRefer = &val
+		}
+		referType := m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["refer_type"].(types.String).ValueStringPointer()
+		if referType == nil {
+			domainConf.AccessControlConf.ReferConf.ReferType = nil
+		} else {
+			val := 0
+			if *referType == "blacklist" {
+				val = 1
+			}
+			domainConf.AccessControlConf.ReferConf.ReferType = &val
+		}
 		m.AccessControlConfig.Attributes()["refer_conf"].(types.Object).Attributes()["refer_list"].(types.List).ElementsAs(nil, &domainConf.AccessControlConf.ReferConf.ReferList, false)
 		if len(domainConf.AccessControlConf.ReferConf.ReferList) == 0 {
 			domainConf.AccessControlConf.EnableRefer = false
@@ -790,10 +806,13 @@ func updateUcloudCdnDomainResourceModel(ctx context.Context, model *cdnDomainRes
 	model.OriginConfig.OriginHost = types.StringValue(info.OriginConf.OriginHost)
 	model.OriginConfig.OriginPort = types.Int64Value(int64(info.OriginConf.OriginPort))
 	model.OriginConfig.OriginProtocol = types.StringValue(info.OriginConf.OriginProtocol)
-	model.OriginConfig.OriginFollow301 = types.Int64Value(int64(info.OriginConf.OriginFollow301))
+	if info.OriginConf.OriginFollow301 == 1 {
+		model.OriginConfig.OriginFollow301 = types.BoolValue(true)
+	} else {
+		model.OriginConfig.OriginFollow301 = types.BoolValue(false)
+	}
 
 	model.CacheConf = &cacheConfigModel{}
-	model.CacheConf.CacheHost = types.StringPointerValue(info.CacheConf.CacheHost)
 	model.CacheConf.RuleList = make([]*cacheRuleModel, 0)
 	model.CacheConf.HttpCodeCachRuleList = make([]*httpCodeCacheModel, 0)
 	for _, rule := range info.CacheConf.CacheList {
@@ -832,9 +851,17 @@ func updateUcloudCdnDomainResourceModel(ctx context.Context, model *cdnDomainRes
 	if referList.IsNull() {
 		referList = types.ListValueMust(types.StringType, []attr.Value{})
 	}
+	referType := "whitelist"
+	if info.AccessControlConf.ReferConf.ReferType == 1 {
+		referType = "blacklist"
+	}
+	nullRefer := false
+	if info.AccessControlConf.ReferConf.NullRefer == 1 {
+		nullRefer = true
+	}
 	referConfig := types.ObjectValueMust(referConfigAttributeTypes, map[string]attr.Value{
-		"refer_type": types.Int64Value(int64(info.AccessControlConf.ReferConf.ReferType)),
-		"null_refer": types.Int64Value(int64(info.AccessControlConf.ReferConf.NullRefer)),
+		"refer_type": types.StringValue(referType),
+		"null_refer": types.BoolValue(nullRefer),
 		"refer_list": referList,
 	})
 	ipBlackList, diags := types.ListValueFrom(ctx, types.StringType, info.AccessControlConf.IpBlackList)

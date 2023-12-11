@@ -1,6 +1,7 @@
 package ucloud
 
 import (
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
@@ -23,8 +24,9 @@ type sslCertificateResource struct {
 }
 
 var (
-	_ resource.Resource              = &sslCertificateResource{}
-	_ resource.ResourceWithConfigure = &sslCertificateResource{}
+	_ resource.Resource                = &sslCertificateResource{}
+	_ resource.ResourceWithConfigure   = &sslCertificateResource{}
+	_ resource.ResourceWithImportState = &sslCertificateResource{}
 )
 
 func NewSslCertificateResource() resource.Resource {
@@ -96,10 +98,19 @@ func (r *sslCertificateResource) Read(ctx context.Context, req resource.ReadRequ
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	certlist := api.GetCertificates(r.client, state.CertName.ValueString())
+
+	certlist, err := api.GetCertificates(r.client, state.CertName.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR]Fail to get ssl_certificate", err.Error())
+		return
+	}
+
 	if len(certlist) == 0 {
 		resp.State.RemoveResource(ctx)
+		return
 	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *sslCertificateResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
@@ -144,4 +155,8 @@ func (r *sslCertificateResource) Delete(ctx context.Context, req resource.Delete
 		resp.Diagnostics.AddError("[API ERROR] Failed to Del Certificate", err.Error())
 		return
 	}
+}
+
+func (r *sslCertificateResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
+	resource.ImportStatePassthroughID(ctx, path.Root("cert_name"), req, resp)
 }
