@@ -24,11 +24,10 @@ resource "st-ucloud_cdn_domain" "test" {
     origin_host      = "pgasia-cdn.com"
     origin_port      = 80
     origin_protocol  = "https"
-    origin_follow301 = 1
+    origin_follow301 = true
   }
 
   cache_conf {
-    cache_host = "pgasia-cdn.com"
     cache_rule {
       path_pattern       = "/"
       description        = "test"
@@ -74,9 +73,9 @@ resource "st-ucloud_cdn_domain" "test" {
     enable_refer = false
     ip_blacklist = ["100.100.100.100", "4.4.4.4"]
     refer_conf = {
-      null_refer = 1
+      null_refer = true
       refer_list = ["sige-test3.com"]
-      refer_type = 1
+      refer_type = "blacklist"
     }
   }
 
@@ -126,9 +125,9 @@ Optional:
 
 Optional:
 
-- `null_refer` (Number) When `refer_type` is 0,if the value is 0,NULL refer requests are not allowed.
+- `null_refer` (Boolean) When `refer_type` is whitelist and `null_refer` is false,NULL refer requests are not allowed.
 - `refer_list` (List of String) The anti-leech rule list
-- `refer_type` (Number) The type of anti-leech rules.If the value is 0,`refer_list` is whitelist,requests with these refers will be allowed.If the value is 1,`refer_list` is blacklist,requests with these refers will be denied.
+- `refer_type` (String) The type of anti-leech rules.If the value is 0,`refer_list` is whitelist,requests with these refers will be allowed.If the value is 1,`refer_list` is blacklist,requests with these refers will be denied.
 
 
 
@@ -147,7 +146,6 @@ Optional:
 
 Optional:
 
-- `cache_host` (String) Cache Host
 - `cache_rule` (Block List) The list of cache rule (see [below for nested schema](#nestedblock--cache_conf--cache_rule))
 - `http_code_cache_rule` (Block List) The list of http code cache rule (see [below for nested schema](#nestedblock--cache_conf--http_code_cache_rule))
 
@@ -196,7 +194,7 @@ Required:
 
 Optional:
 
-- `origin_follow301` (Number) Whether redirect according to the url from origin.The optional values are 0 and 1
+- `origin_follow301` (Boolean) Whether redirect according to the url from origin.The optional values are true and false
 - `origin_host` (String) The host of origin
 - `origin_port` (Number) The service port of origin
 - `origin_protocol` (String) The protocol of origin.The optional values are `http` and `https`

@@ -258,8 +258,8 @@ type UpdateCdnAccessControlConfig struct {
 	IpBlackListEmpty bool
 
 	ReferConf struct {
-		ReferType *int64
-		NullRefer *int64
+		ReferType *int
+		NullRefer *int
 		ReferList []string
 	}
 	EnableRefer bool

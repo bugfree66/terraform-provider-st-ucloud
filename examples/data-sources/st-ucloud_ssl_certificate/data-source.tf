@@ -1,3 +1,3 @@
-data "st-ucloud_ssl_certificate" "def" {
+data "st-ucloud_ssl_certificate" "test" {
 }
 

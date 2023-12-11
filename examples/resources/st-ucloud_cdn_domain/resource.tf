@@ -9,11 +9,10 @@ resource "st-ucloud_cdn_domain" "test" {
     origin_host      = "pgasia-cdn.com"
     origin_port      = 80
     origin_protocol  = "https"
-    origin_follow301 = 1
+    origin_follow301 = true
   }
 
   cache_conf {
-    cache_host = "pgasia-cdn.com"
     cache_rule {
       path_pattern       = "/"
       description        = "test"
@@ -59,9 +58,9 @@ resource "st-ucloud_cdn_domain" "test" {
     enable_refer = false
     ip_blacklist = ["100.100.100.100", "4.4.4.4"]
     refer_conf = {
-      null_refer = 1
+      null_refer = true
       refer_list = ["sige-test3.com"]
-      refer_type = 1
+      refer_type = "blacklist"
     }
   }
 

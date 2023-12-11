@@ -39,8 +39,23 @@ func AddCertificate(client *ucdn.UCDNClient, name, userCert, privateKey, caCert 
 	return backoff.Retry(addCertificate, reconnectBackoff)
 }
 
-func GetCertificates(client *ucdn.UCDNClient, name string) []ucdn.CertList {
-	result := make([]ucdn.CertList, 0)
+// Get ceritificate with specific cert name.
+// If nameList is nil, this function will return all certificates.
+func GetCertificates(client *ucdn.UCDNClient, nameList ...string) ([]*ucdn.CertList, error) {
+	var (
+		result   []*ucdn.CertList
+		indexMap map[string]int
+	)
+
+	if nameList == nil {
+		result = make([]*ucdn.CertList, 0)
+	} else {
+		result = make([]*ucdn.CertList, len(nameList))
+		indexMap = make(map[string]int)
+		for i, name := range nameList {
+			indexMap[name] = i
+		}
+	}
 
 	offset, limit := 0, 10
 	getCertificateV2Request := ucdn.GetCertificateV2Request{
@@ -69,29 +84,36 @@ func GetCertificates(client *ucdn.UCDNClient, name string) []ucdn.CertList {
 		return nil
 	}
 
+	matchCount := 0
 	reconnectBackoff := backoff.NewExponentialBackOff()
 	reconnectBackoff.MaxElapsedTime = 30 * time.Second
 	for {
 		err = backoff.Retry(getCertificate, reconnectBackoff)
 		if err != nil {
-			return result
+			return nil, err
 		}
-		if name != "" {
-			for _, cert := range getCertificateV2Response.CertList {
-				if cert.CertName == name {
-					result = append(result, cert)
-					break
-				}
+
+		for i := 0; i < len(getCertificateV2Response.CertList); i++ {
+			cert := &getCertificateV2Response.CertList[i]
+			if nameList == nil {
+				result = append(result, cert)
+			} else if idx, ok := indexMap[cert.CertName]; ok {
+				result[idx] = cert
+				matchCount++
 			}
-		} else {
-			result = append(result, getCertificateV2Response.CertList...)
 		}
+
+		if nameList != nil && matchCount == len(nameList) {
+			break
+		}
+
 		if len(getCertificateV2Response.CertList) < limit {
 			break
 		}
 		offset += limit
 	}
-	return result
+
+	return result, nil
 }
 
 func DeleteCertificate(client *ucdn.UCDNClient, name string) error {

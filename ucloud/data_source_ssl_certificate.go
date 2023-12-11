@@ -21,13 +21,8 @@ type certificate struct {
 }
 
 type certDataSourceModel struct {
-	CertList []certificate `tfsdk:"cert_list"`
-}
-
-func newCertDataSourceModel() *certDataSourceModel {
-	m := &certDataSourceModel{}
-	m.CertList = make([]certificate, 0)
-	return m
+	CertNameList types.List     `tfsdk:"cert_name_list"`
+	CertList     []*certificate `tfsdk:"cert_list"`
 }
 
 type certDataSource struct {
@@ -46,8 +41,13 @@ func (d *certDataSource) Schema(_ context.Context, req datasource.SchemaRequest,
 	resp.Schema = schema.Schema{
 		Description: "This data source provides certificates configured in ucloud, including certificate name,domains associated with the certificate,etc.",
 		Attributes: map[string]schema.Attribute{
+			"cert_name_list": schema.ListAttribute{
+				Description: "List of cert_name.If `cert_name_list` is null,retrieve all certificates.If `cert_name_list` is not null,retrieve certificates with specific name",
+				ElementType: types.StringType,
+				Optional:    true,
+			},
 			"cert_list": schema.ListNestedAttribute{
-				Description: "List of certificate",
+				Description: "List of certificate.",
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
 						"cert_name": schema.StringAttribute{
@@ -75,25 +75,38 @@ func (d *certDataSource) Configure(_ context.Context, req datasource.ConfigureRe
 }
 
 func (d *certDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
-	model := newCertDataSourceModel()
+	var model, state certDataSourceModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, model)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &model)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	certlist := api.GetCertificates(d.client, "")
-	for _, cert := range certlist {
-		c := certificate{}
-		c.CertName = types.StringValue(cert.CertName)
-		domains, diags := types.ListValueFrom(ctx, types.StringType, cert.Domains)
-		resp.Diagnostics.Append(diags...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-		c.Domains = domains
-		model.CertList = append(model.CertList, c)
+	state.CertNameList = model.CertNameList
+
+	var queryList []string
+	resp.Diagnostics.Append(state.CertNameList.ElementsAs(ctx, &queryList, false)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	certlist, err := api.GetCertificates(d.client, queryList...)
+	if err != nil {
+		resp.Diagnostics.AddError("[API ERROR]Fail to get ssl status", err.Error())
+		return
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, model)...)
+	state.CertList = make([]*certificate, len(queryList))
+	for _, cert := range certlist {
+		if cert == nil {
+			continue
+		}
+		domains, _ := types.ListValueFrom(ctx, types.StringType, cert.Domains)
+		c := &certificate{
+			CertName: types.StringValue(cert.CertName),
+			Domains:  domains,
+		}
+		state.CertList = append(state.CertList, c)
+	}
+
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
